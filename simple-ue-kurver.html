@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <title>Interaktivt udbuds- og efterspørgselsdiagram</title>
+  <style>
+    body{font-family:system-ui,sans-serif;padding:1rem;background:#f9fafb;color:#111;}
+    h2,h3{margin-top:1.2rem;}
+    svg{background:#fff;border:1px solid #ccc;border-radius:0.75rem;box-shadow:0 2px 4px rgba(0,0,0,.06);}
+    label{display:inline-flex;align-items:center;margin-right:1rem;gap:0.25rem;}
+    input,select,button{padding:0.35rem 0.6rem;border:1px solid #ccc;border-radius:0.5rem;font-size:1rem;}
+    button{cursor:pointer;background:#2563eb;color:#fff;border:none;transition:background .2s;}
+    button:hover{background:#1d4ed8;}
+    .legend{margin-top:0.6rem;font-size:0.85rem;}
+    .legend span{display:inline-flex;align-items:center;margin-right:1rem;gap:4px;}
+    .legend-line{width:30px;height:0;border-top-width:3px;border-top-style:solid;}
+    .baseline-demand{border-color:#2563eb;}
+    .baseline-supply{border-color:#ef4444;}
+    .shifted-demand{border-color:#2563eb;border-top-style:dashed;}
+    .shifted-supply{border-color:#ef4444;border-top-style:dashed;}
+  </style>
+</head>
+<body>
+  <h2>Interaktivt udbuds- og efterspørgselsdiagram</h2>
+
+  <div id="chartWrapper"><svg id="chart" width="600" height="400"></svg></div>
+
+  <div class="legend">
+    <span><span class="legend-line baseline-demand"></span>Oprindelig efterspørgsel</span>
+    <span><span class="legend-line baseline-supply"></span>Oprindeligt udbud</span>
+    <span><span class="legend-line shifted-demand"></span>Ny efterspørgsel</span>
+    <span><span class="legend-line shifted-supply"></span>Nyt udbud</span>
+  </div>
+
+  <section>
+    <h3>Vælg en begivenhed</h3>
+    <select id="curveSelect">
+      <option value="">--Vælg--</option>
+      <option value="demand_up">Efterspørgslen stiger (skift til højre)</option>
+      <option value="demand_down">Efterspørgslen falder (skift til venstre)</option>
+      <option value="supply_up">Udbuddet stiger (skift til højre)</option>
+      <option value="supply_down">Udbuddet falder (skift til venstre)</option>
+    </select>
+    <button onclick="applyEvent()">Anvend</button>
+  </section>
+
+  <hr />
+
+  <section>
+    <h3>Skriv én ændring (stiger / falder) – kun ét felt</h3>
+    <label>Efterspørgsel:<input type="text" id="demandInput" placeholder="stiger / falder"></label>
+    <label>Udbud:<input type="text" id="supplyInput"  placeholder="stiger / falder"></label>
+    <button onclick="applyText()">Opdater</button>
+  </section>
+
+<script>
+/***** Konstanter & skalaer *****/
+const svg=document.getElementById('chart');
+const svgns='http://www.w3.org/2000/svg';
+const width=+svg.getAttribute('width');
+const height=+svg.getAttribute('height');
+const margin={top:20,right:20,bottom:40,left:50};
+const w=width-margin.left-margin.right;
+const h=height-margin.top-margin.bottom;
+const maxP=100,maxQ=100;
+const priceToY=p=>h-(p/maxP)*h; const qtyToX=q=>(q/maxQ)*w;
+
+/***** Kurve­parametre *****/
+const demandSlope=-1,supplySlope=1,shift=15;
+const baseDemandIntercept=90,baseSupplyIntercept=10;
+let demandIntercept=baseDemandIntercept;
+let supplyIntercept=baseSupplyIntercept;
+
+/***** SVG-grupper *****/
+const g=document.createElementNS(svgns,'g');
+g.setAttribute('transform',`translate(${margin.left},${margin.top})`);
+svg.appendChild(g);
+
+const gBase=document.createElementNS(svgns,'g');g.appendChild(gBase);
+const gDyn =document.createElementNS(svgns,'g');g.appendChild(gDyn);
+
+/***** Akser *****/
+[['x',0,h,w,h],['y',0,0,0,h]].forEach(([,x1,y1,x2,y2])=>{
+  const l=document.createElementNS(svgns,'line');
+  l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+  l.setAttribute('stroke','#000');g.appendChild(l);
+});
+['Pris','Mængde'].forEach((t,i)=>{
+  const txt=document.createElementNS(svgns,'text');
+  txt.textContent=t;
+  txt.setAttribute('font-size','14');
+  if(i===0){txt.setAttribute('x',-margin.left+12);txt.setAttribute('y',-6);}else{txt.setAttribute('x',w-45);txt.setAttribute('y',h+30);}g.appendChild(txt);
+});
+
+/***** Tegne-funktioner *****/
+function line(parent,q1,p1,q2,p2,color,dashed=false){
+  const l=document.createElementNS(svgns,'line');
+  l.setAttribute('x1',qtyToX(q1));l.setAttribute('y1',priceToY(p1));
+  l.setAttribute('x2',qtyToX(q2));l.setAttribute('y2',priceToY(p2));
+  l.setAttribute('stroke',color);l.setAttribute('stroke-width',2);
+  if(dashed) l.setAttribute('stroke-dasharray','5 4');
+  parent.appendChild(l);
+}
+
+function crosshair(parent,q,p,label){
+  // Kryds-linjer
+  [[0,priceToY(p),qtyToX(q),priceToY(p)],[qtyToX(q),priceToY(p),qtyToX(q),h]].forEach(([x1,y1,x2,y2])=>{
+    const l=document.createElementNS(svgns,'line');
+    l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+    l.setAttribute('stroke','#6b7280');l.setAttribute('stroke-dasharray','4');parent.appendChild(l);
+  });
+  // Punkt
+  const dot=document.createElementNS(svgns,'circle');
+  dot.setAttribute('cx',qtyToX(q));dot.setAttribute('cy',priceToY(p));dot.setAttribute('r',4);dot.setAttribute('fill','#111');parent.appendChild(dot);
+  // Akse-labels
+  const mLabel=document.createElementNS(svgns,'text');
+  mLabel.textContent=`m${label}`;
+  mLabel.setAttribute('x',qtyToX(q));
+  mLabel.setAttribute('y',h+15);
+  mLabel.setAttribute('text-anchor','middle');mLabel.setAttribute('font-size','12');parent.appendChild(mLabel);
+
+  const pLabel=document.createElementNS(svgns,'text');
+  pLabel.textContent=`p${label}`;
+  pLabel.setAttribute('x',-12);
+  pLabel.setAttribute('y',priceToY(p)+4);
+  pLabel.setAttribute('font-size','12');parent.appendChild(pLabel);
+}
+
+/***** Baseline tegnes én gang *****/
+function drawBaseline(){
+  line(gBase,0,baseDemandIntercept,maxQ,baseDemandIntercept+demandSlope*maxQ,'#2563eb');
+  line(gBase,0,baseSupplyIntercept,maxQ,baseSupplyIntercept+supplySlope*maxQ,'#ef4444');
+  const Q0=(baseDemandIntercept-baseSupplyIntercept)/(supplySlope-demandSlope);
+  const P0=baseSupplyIntercept+supplySlope*Q0;
+  crosshair(gBase,Q0,P0,'0');
+}
+
+drawBaseline();
+
+/***** Dynamic (ændring) tegnes hver gang *****/
+function updateDynamic(){
+  // ryd gamle
+  while(gDyn.firstChild) gDyn.removeChild(gDyn.firstChild);
+
+  // bestem om der er ændring
+  if(demandIntercept!==baseDemandIntercept){
+    line(gDyn,0,demandIntercept,maxQ,demandIntercept+demandSlope*maxQ,'#2563eb',true);
+  }else if(supplyIntercept!==baseSupplyIntercept){
+    line(gDyn,0,supplyIntercept,maxQ,supplyIntercept+supplySlope*maxQ,'#ef4444',true);
+  }else{
+    return; // ingen ændring -> ingen ny kurve / krydspunkt
+  }
+  // nyt krydspunkt
+  const Q1=(demandIntercept-supplyIntercept)/(supplySlope-demandSlope);
+  const P1=supplyIntercept+supplySlope*Q1;
+  crosshair(gDyn,Q1,P1,'1');
+}
+
+updateDynamic();
+
+/***** Hjælpe­funktioner *****/
+function resetToBaseline(){
+  demandIntercept=baseDemandIntercept;
+  supplyIntercept=baseSupplyIntercept;
+}
+
+/***** Event-håndtering *****/
+function applyEvent(){
+  const val=document.getElementById('curveSelect').value;
+  resetToBaseline();
+  switch(val){
+    case 'demand_up':   demandIntercept+=shift; break;
+    case 'demand_down': demandIntercept-=shift; break;
+    case 'supply_up':   supplyIntercept-=shift; break; // udbud ↑ ⇒ kurve ned/ud
+    case 'supply_down': supplyIntercept+=shift; break; // udbud ↓ ⇒ kurve op/ind
+    default: updateDynamic(); return;
+  }
+  updateDynamic();
+}
+
+function applyText(){
+  const dField=document.getElementById('demandInput');
+  const sField=document.getElementById('supplyInput');
+  const d=dField.value.trim().toLowerCase();
+  const s=sField.value.trim().toLowerCase();
+
+  resetToBaseline();
+  if(['stiger','falder'].includes(d) && !['stiger','falder'].includes(s)){
+    demandIntercept+=d==='stiger'?shift:-shift;
+  }else if(['stiger','falder'].includes(s) && !['stiger','falder'].includes(d)){
+    supplyIntercept+=s==='stiger'?-shift:shift;
+  }else if(['stiger','falder'].includes(d) && ['stiger','falder'].includes(s)){
+    alert('Vælg kun én ændring ad gangen – udfyld kun ét felt.');
+    return;
+  }else{
+    return; // ingen gyldig ændring
+  }
+  dField.value='';sField.value='';
+  updateDynamic();
+}
+</script>
+</body>
+</html>

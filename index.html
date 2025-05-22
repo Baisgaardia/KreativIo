@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Allan Baisgaard – Landing Page</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>body{font-family:'Inter',sans-serif;}</style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+
+  <nav class="sticky top-0 bg-white bg-opacity-90 dark:bg-gray-800 dark:bg-opacity-90 backdrop-blur-sm z-50" role="navigation" aria-label="Hovednavigation">
+    <div class="container mx-auto px-4 py-4">
+      <a href="#" class="text-2xl font-bold text-[#7C3AED]">Allan Baisgaard</a>
+    </div>
+  </nav>
+
+  <header class="relative h-[60vh] min-h-[300px]" role="banner" aria-labelledby="hero-heading">
+    <div class="absolute inset-0 bg-cover bg-center" style="background-image:url('9788743328346.jpg');" aria-hidden="true"></div>
+    <div class="absolute inset-0 bg-black bg-opacity-50"></div>
+    <div class="container mx-auto px-4 h-full flex items-center justify-center">
+      <h1 id="hero-heading" class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white transition-opacity duration-300">Kreative øvelser i IØ</h1>
+    </div>
+  </header>
+
+  <main class="container mx-auto px-4 py-8" role="main">
+    <section aria-labelledby="sections-heading">
+      <h2 id="sections-heading" class="sr-only">Undersider</h2>
+      <div class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <article role="region" aria-labelledby="card-title-oecd" class="bg-white dark:bg-gray-800 rounded-2xl shadow-md transition-transform transition-shadow hover:-translate-y-1 hover:shadow-xl">
+          <a href="oecd.html" class="block p-6">
+            <h3 id="card-title-oecd" class="text-xl font-semibold text-[#7C3AED]">Hent data fra OECD</h3>
+            <p class="mt-2 text-gray-700 dark:text-gray-300">Indsamling af OECD Data ved et klik</p>
+          </a>
+        </article>
+        <article role="region" aria-labelledby="card-title-graphs" class="bg-white dark:bg-gray-800 rounded-2xl shadow-md transition-transform transition-shadow hover:-translate-y-1 hover:shadow-xl">
+          <a href="grafer.html" class="block p-6">
+            <h3 id="card-title-graphs" class="text-xl font-semibold text-[#7C3AED]">Lav grafer og kurver</h3>
+            <p class="mt-2 text-gray-700 dark:text-gray-300">Lav graf og kurver</p>
+          </a>
+        </article>
+        <article role="region" aria-labelledby="card-title-method" class="bg-white dark:bg-gray-800 rounded-2xl shadow-md transition-transform transition-shadow hover:-translate-y-1 hover:shadow-xl">
+          <a href="metode.html" class="block p-6">
+            <h3 id="card-title-method" class="text-xl font-semibold text-[#7C3AED]">Metode spørgsmål</h3>
+            <p class="mt-2 text-gray-700 dark:text-gray-300">Metode eksamensprojekt</p>
+          </a>
+        </article>
+        <article role="region" aria-labelledby="card-title-currency" class="bg-white dark:bg-gray-800 rounded-2xl shadow-md transition-transform transition-shadow hover:-translate-y-1 hover:shadow-xl">
+          <a href="valutakurser.html" class="block p-6">
+            <h3 id="card-title-currency" class="text-xl font-semibold text-[#7C3AED]">Valutakurser kurver</h3>
+            <p class="mt-2 text-gray-700 dark:text-gray-300">Lav kurver til valutakurser</p>
+          </a>
+        </article>
+        <article role="region" aria-labelledby="card-title-simple" class="bg-white dark:bg-gray-800 rounded-2xl shadow-md transition-transform transition-shadow hover:-translate-y-1 hover:shadow-xl">
+          <a href="simple-ue-kurver.html" class="block p-6">
+            <h3 id="card-title-simple" class="text-xl font-semibold text-[#7C3AED]">Simple U/E kurver</h3>
+            <p class="mt-2 text-gray-700 dark:text-gray-300">Lav simple kurver</p>
+          </a>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="fixed bottom-2 right-2 text-xs text-gray-600 dark:text-gray-400" role="contentinfo">
+    &copy; Allan Baisgaard, Aalborg Handelsgymnasie, Turøgade
+  </footer>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const heroHeading = document.getElementById('hero-heading');
+      window.addEventListener('scroll', function() {
+        heroHeading.classList.toggle('opacity-0', window.scrollY > 150);
+      });
+    });
+  </script>
+
+</body>
+</html>

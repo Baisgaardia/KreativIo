@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <title>Nøgletals‑graf fra Excel</title>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS (xlsx) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        body{font-family:Arial, sans-serif;margin:20px}
+        #controls{margin-bottom:20px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}
+        #indicatorSelect{width:300px}
+        #yearSelect{width:120px}
+        button{padding:6px 10px}
+        /* Begræns grafens visuelle størrelse */
+        canvas#chart{max-width:700px;max-height:400px;width:100%;height:auto}
+        footer{margin-top:20px;font-size:0.9em;color:#555}
+    </style>
+</head>
+<body>
+<h1>Nøgletals‑graf fra Excel</h1>
+<div id="controls">
+    <input type="file" id="fileInput" accept=".xlsx,.xls"/>
+
+    <input type="text" id="filterInput" placeholder="Søg indikator…" disabled/>
+    <select id="indicatorSelect" multiple size="12" disabled></select>
+
+    <select id="yearSelect" multiple size="8" disabled></select>
+
+    <button id="last5Btn" disabled>Seneste 5 år</button>
+    <button id="last10Btn" disabled>Seneste 10 år</button>
+
+    <button id="plotBtn" disabled>Tegn graf</button>
+</div>
+<canvas id="chart"></canvas>
+<footer>&copy; Allan Baisgaard</footer>
+
+<script>
+let rawRows=[];
+let years=[];
+let chart;
+
+const fileInput=document.getElementById('fileInput');
+const filterInput=document.getElementById('filterInput');
+const indicatorSelect=document.getElementById('indicatorSelect');
+const yearSelect=document.getElementById('yearSelect');
+const last5Btn=document.getElementById('last5Btn');
+const last10Btn=document.getElementById('last10Btn');
+const plotBtn=document.getElementById('plotBtn');
+
+function asNumber(v){
+  return (v!==null && v!=='' && !isNaN(Number(v)))?Number(v):null;
+}
+
+fileInput.addEventListener('change',e=>{
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array'});
+    const sheet=wb.Sheets[wb.SheetNames[0]];
+    const arr=XLSX.utils.sheet_to_json(sheet,{header:1,defval:null});
+    if(arr.length<2){alert('Arket ser tomt ud');return;}
+
+    rawRows=arr.slice(1);
+    years=arr[0].slice(1);
+
+    populateIndicators();
+    populateYears();
+
+    [filterInput,indicatorSelect,yearSelect,last5Btn,last10Btn,plotBtn].forEach(el=>el.disabled=false);
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function populateIndicators(){
+  indicatorSelect.innerHTML='';
+  rawRows.map(r=>r[0]).filter(n=>n&&n!=='..').forEach(name=>{
+    const opt=document.createElement('option');
+    opt.value=name;
+    opt.textContent=name;
+    indicatorSelect.appendChild(opt);
+  });
+}
+
+function populateYears(){
+  yearSelect.innerHTML='';
+  const allOpt=document.createElement('option');
+  allOpt.value='all';
+  allOpt.textContent='Alle år';
+  allOpt.selected=true;
+  yearSelect.appendChild(allOpt);
+  years.forEach(y=>{
+    const opt=document.createElement('option');
+    opt.value=String(y);
+    opt.textContent=y;
+    yearSelect.appendChild(opt);
+  });
+}
+
+filterInput.addEventListener('input',e=>{
+  const term=e.target.value.toLowerCase();
+  Array.from(indicatorSelect.options).forEach(opt=>{
+    opt.style.display=opt.textContent.toLowerCase().includes(term)?'':'none';
+  });
+});
+
+function selectLast(n){
+  if(years.length===0) return;
+  const lastYears=years.slice(-n).map(String);
+  Array.from(yearSelect.options).forEach(opt=>{
+    if(opt.value==='all'){
+      opt.selected=false;
+    } else {
+      opt.selected=lastYears.includes(opt.value);
+    }
+  });
+}
+
+last5Btn.addEventListener('click',()=>selectLast(5));
+last10Btn.addEventListener('click',()=>selectLast(10));
+
+plotBtn.addEventListener('click',()=>{
+  const selectedIndicators=Array.from(indicatorSelect.options)
+    .filter(o=>o.selected && o.style.display!=='none')
+    .map(o=>o.value);
+  if(selectedIndicators.length===0){alert('Vælg mindst én indikator.');return;}
+
+  const selectedYears=Array.from(yearSelect.options)
+    .filter(o=>o.selected)
+    .map(o=>o.value);
+  const useAllYears=selectedYears.length===0 || selectedYears.includes('all');
+  const yearsToUse=useAllYears?years:selectedYears;
+
+  const datasets=selectedIndicators.map((name,idx)=>{
+    const row=rawRows.find(r=>r[0]===name);
+    const data=[];
+    years.forEach((yr,i)=>{
+      if(useAllYears || yearsToUse.includes(String(yr))){
+        data.push(asNumber(row[i+1]));
+      }
+    });
+    return {
+      label:name,
+      data,
+      borderColor:`hsl(${idx*70%360},70%,45%)`,
+      fill:false,
+      spanGaps:true
+    };
+  });
+
+  const labels=years.filter(yr=>useAllYears||yearsToUse.includes(String(yr)));
+
+  if(chart) chart.destroy();
+  chart=new Chart(document.getElementById('chart'),{
+    type:'line',
+    data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},
+      scales:{x:{title:{display:true,text:'År'}},y:{title:{display:true,text:'Værdi'}}}}
+  });
+});
+</script>
+</body>
+</html>

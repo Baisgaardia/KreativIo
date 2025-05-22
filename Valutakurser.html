@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="utf-8" />
+<title>Interaktivt udbuds- og efterspørgselsdiagram (valuta + PNG-eksport)</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:0;padding:1.5rem;background:#f9fafb;color:#111;}
+  h2,h3{margin:0 0 0.8rem;}
+  section{margin-top:1.4rem;}
+  input,select,button{padding:0.45rem 0.8rem;font-size:1rem;border:1px solid #ccc;border-radius:0.55rem;}
+  button{cursor:pointer;background:#2563eb;color:#fff;border:none;transition:background .2s;}
+  button:hover{background:#1d4ed8;}
+  svg{background:#fff;border:1px solid #cbd5e1;border-radius:0.8rem;box-shadow:0 2px 5px rgba(0,0,0,.05);}
+  .legend{margin-top:0.9rem;font-size:.85rem;line-height:1.4;}
+  .legend span{display:inline-flex;align-items:center;gap:4px;margin-right:1rem;}
+  .legend-line{width:32px;height:0;border-top:3px solid;}
+  .baseline-demand{border-color:#2563eb;}
+  .baseline-supply{border-color:#ef4444;}
+  .shifted-demand{border-color:#2563eb;border-top-style:dashed;}
+  .shifted-supply{border-color:#ef4444;border-top-style:dashed;}
+</style>
+</head>
+<body>
+
+<h2>Interaktivt udbuds- og efterspørgselsdiagram</h2>
+
+<!-- Valuta -->
+<section>
+  <h3>Valutaenhed (valgfrit)</h3>
+  <input id="currencyInput" placeholder="fx USD" />
+  <button id="currencyBtn">Opdater akse-labels</button>
+</section>
+
+<!-- Diagram container -->
+<div id="chartWrapper"></div>
+<button id="pngBtn" style="margin-top:0.8rem">Download PNG</button>
+
+<!-- Forklaring -->
+<div class="legend">
+  <span><span class="legend-line baseline-demand"></span>Oprindelig efterspørgsel</span>
+  <span><span class="legend-line baseline-supply"></span>Oprindeligt udbud</span>
+  <span><span class="legend-line shifted-demand"></span>Ny efterspørgsel</span>
+  <span><span class="legend-line shifted-supply"></span>Nyt udbud</span>
+</div>
+
+<!-- Begivenheder -->
+<section>
+  <h3>Vælg en begivenhed</h3>
+  <select id="curveSelect">
+    <option value="">--Vælg--</option>
+    <option value="demand_up">Efterspørgslen stiger (højre)</option>
+    <option value="demand_down">Efterspørgslen falder (venstre)</option>
+    <option value="supply_up">Udbuddet stiger (højre)</option>
+    <option value="supply_down">Udbuddet falder (venstre)</option>
+  </select>
+  <button id="eventBtn">Anvend</button>
+</section>
+
+<hr>
+
+<!-- Tekstinput -->
+<section>
+  <h3>Skriv én ændring (stiger / falder)</h3>
+  <label>Efterspørgsel:
+    <input id="demandInput" placeholder="stiger / falder">
+  </label>
+  <label style="margin-left:1rem">Udbud:
+    <input id="supplyInput" placeholder="stiger / falder">
+  </label>
+  <button id="textBtn">Opdater</button>
+</section>
+
+<script>
+/* === Konstanter === */
+const WIDTH = 800, HEIGHT = 500;
+const M      = {top: 30, right: 30, bottom: 60, left: 80};
+const W      = WIDTH - M.left - M.right;
+const H      = HEIGHT - M.top  - M.bottom;
+const MAX_P  = 100,  MAX_Q  = 100;
+const DEM_SLOPE = -1, SUP_SLOPE = 1, SHIFT = 15;
+const BASE_DEM_INT = 90, BASE_SUP_INT = 10;
+
+/* === Tilstand === */
+let demInt = BASE_DEM_INT,
+    supInt = BASE_SUP_INT,
+    currency = '';
+
+/* === Hjælpe-funktioner === */
+const priceToY = p => H - (p / MAX_P) * H,
+      qtyToX   = q => (q / MAX_Q) * W;
+
+const setAttrs = (el, obj) => { for (const [k,v] of Object.entries(obj)) el.setAttribute(k, v) };
+
+/* === SVG-opsætning === */
+const NS  = 'http://www.w3.org/2000/svg';
+const svg = document.createElementNS(NS, 'svg');
+setAttrs(svg, {width: WIDTH, height: HEIGHT, viewBox: `0 0 ${WIDTH} ${HEIGHT}`});
+document.getElementById('chartWrapper').appendChild(svg);
+
+const gMain = document.createElementNS(NS,'g');
+setAttrs(gMain, {transform: `translate(${M.left},${M.top})`});
+svg.appendChild(gMain);
+
+const gAxes  = document.createElementNS(NS,'g'),
+      gBase  = document.createElementNS(NS,'g'),
+      gDyn   = document.createElementNS(NS,'g');
+[gAxes,gBase,gDyn].forEach(g => gMain.appendChild(g));
+
+/* --- Akser --- */
+[[0, H, W, H], [0, 0, 0, H]].forEach(([x1,y1,x2,y2])=>{
+  const l=document.createElementNS(NS,'line');
+  setAttrs(l,{x1,y1,x2,y2,stroke:'#000'}); gAxes.appendChild(l);
+});
+const yLab=document.createElementNS(NS,'text'),
+      xLab=document.createElementNS(NS,'text');
+setAttrs(yLab,{x:-M.left+22,y:-12,'font-size':14});
+setAttrs(xLab,{x:W/2,y:H+46,'font-size':14,'text-anchor':'middle'});
+gAxes.appendChild(yLab); gAxes.appendChild(xLab);
+const updateAxisLabels = () => {
+  if(currency){
+    yLab.textContent = `Valutakurs ${currency}`;
+    xLab.textContent = `Udbud af ${currency}`;
+  } else {
+    yLab.textContent = 'Pris';
+    xLab.textContent = 'Mængde';
+  }
+};
+
+/* --- Tegne-hjælpere --- */
+const drawLine = (parent, q1,p1, q2,p2, colour, dashed) => {
+  const l=document.createElementNS(NS,'line');
+  setAttrs(l,{
+    x1: qtyToX(q1), y1: priceToY(p1),
+    x2: qtyToX(q2), y2: priceToY(p2),
+    stroke: colour, 'stroke-width': 2
+  });
+  if(dashed) l.setAttribute('stroke-dasharray','5 4');
+  parent.appendChild(l);
+};
+
+const drawCrosshair = (parent, q, p, label) => {
+  [[0, priceToY(p), qtyToX(q), priceToY(p)],
+   [qtyToX(q), priceToY(p), qtyToX(q), H]].forEach(([x1,y1,x2,y2])=>{
+      const l=document.createElementNS(NS,'line');
+      setAttrs(l,{x1,y1,x2,y2,stroke:'#6b7280','stroke-dasharray':'4'});
+      parent.appendChild(l);
+   });
+  const dot=document.createElementNS(NS,'circle');
+  setAttrs(dot,{cx:qtyToX(q), cy:priceToY(p), r:4, fill:'#111'}); parent.appendChild(dot);
+
+  const m=document.createElementNS(NS,'text');
+  m.textContent = `m${label}`;
+  setAttrs(m,{x: qtyToX(q), y:H+24, 'font-size':12,'text-anchor':'middle'}); parent.appendChild(m);
+
+  const pr=document.createElementNS(NS,'text');
+  pr.textContent = `p${label}`;
+  setAttrs(pr,{x: -38, y: priceToY(p)+4, 'font-size':12}); parent.appendChild(pr);
+};
+
+/* --- Baseline & dynamiske kurver --- */
+const resetParams = () => { demInt = BASE_DEM_INT; supInt = BASE_SUP_INT; };
+
+const drawBaseline = () => {
+  gBase.innerHTML = '';
+  drawLine(gBase, 0, BASE_DEM_INT, MAX_Q, BASE_DEM_INT + DEM_SLOPE * MAX_Q, '#2563eb');
+  drawLine(gBase, 0, BASE_SUP_INT, MAX_Q, BASE_SUP_INT + SUP_SLOPE * MAX_Q, '#ef4444');
+  const Q0=(BASE_DEM_INT-BASE_SUP_INT)/(SUP_SLOPE-DEM_SLOPE),
+        P0=BASE_SUP_INT+SUP_SLOPE*Q0;
+  drawCrosshair(gBase, Q0, P0, '0');
+};
+
+const drawDynamic = () => {
+  gDyn.innerHTML = '';
+  if (demInt !== BASE_DEM_INT) {
+    drawLine(gDyn, 0, demInt, MAX_Q, demInt + DEM_SLOPE * MAX_Q, '#2563eb', true);
+  } else if (supInt !== BASE_SUP_INT) {
+    drawLine(gDyn, 0, supInt, MAX_Q, supInt + SUP_SLOPE * MAX_Q, '#ef4444', true);
+  } else { return; }
+
+  const Q1=(demInt - supInt)/(SUP_SLOPE - DEM_SLOPE),
+        P1=supInt + SUP_SLOPE * Q1;
+  drawCrosshair(gDyn, Q1, P1, '1');
+};
+
+/* === PNG-eksport === */
+const savePNG = () => {
+  const serializer = new XMLSerializer(),
+        svgString  = serializer.serializeToString(svg);
+  const img  = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width  = WIDTH;
+    canvas.height = HEIGHT;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';            // hvid baggrund
+    ctx.fillRect(0,0,WIDTH,HEIGHT);
+    ctx.drawImage(img, 0, 0);
+    const a = document.createElement('a');
+    a.download = 'supply-demand.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  };
+  img.src = 'data:image/svg+xml;base64,' + window.btoa(unescape(encodeURIComponent(svgString)));
+};
+
+/* === UI-events === */
+document.getElementById('currencyBtn').addEventListener('click', () => {
+  currency = document.getElementById('currencyInput').value.trim();
+  updateAxisLabels();
+});
+
+document.getElementById('eventBtn').addEventListener('click', () => {
+  resetParams();
+  switch (document.getElementById('curveSelect').value) {
+    case 'demand_up':   demInt += SHIFT; break;
+    case 'demand_down': demInt -= SHIFT; break;
+    case 'supply_up':   supInt -= SHIFT; break;
+    case 'supply_down': supInt += SHIFT; break;
+    default: drawDynamic(); return;
+  }
+  drawDynamic();
+});
+
+document.getElementById('textBtn').addEventListener('click', () => {
+  const d = document.getElementById('demandInput').value.toLowerCase().trim(),
+        s = document.getElementById('supplyInput').value.toLowerCase().trim();
+  if (d && s) { alert('Kun én ændring ad gangen'); return; }
+
+  resetParams();
+  if (['stiger','falder'].includes(d) && !s) {
+    demInt += d === 'stiger' ? SHIFT : -SHIFT;
+  } else if (['stiger','falder'].includes(s) && !d) {
+    supInt += s === 'stiger' ? -SHIFT : SHIFT;
+  } else { return; }
+
+  drawDynamic();
+  document.getElementById('demandInput').value = '';
+  document.getElementById('supplyInput').value = '';
+});
+
+document.getElementById('pngBtn').addEventListener('click', savePNG);
+
+/* === Init === */
+updateAxisLabels();
+drawBaseline();
+</script>
+</body>
+</html>
