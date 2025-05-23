@@ -13,13 +13,6 @@
     th { background:#f2f2f2; }
     tr:nth-child(even){ background:#fafafa; }
     canvas#chart { max-width:700px; max-height:400px; width:100%; height:auto; margin-top:1rem; }
-    .footer-copyright {
-      position: fixed;
-      bottom: 1rem;
-      right: 1rem;
-      font-size: 0.8rem;
-      color: #555;
-    }
     .api-citation {
       position: fixed;
       bottom: 1rem;
@@ -28,6 +21,13 @@
       color: #555;
       max-width: 40%;
       text-align: left;
+    }
+    .footer-copyright {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      font-size: 0.8rem;
+      color: #555;
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -65,13 +65,9 @@
       <button id="plotBtn"  disabled>Tegn graf</button>
     </div>
     <canvas id="chart"></canvas>
-    <footer>&copy; Allan Baisgaard</footer>
   </div>
 
   <div class="api-citation" id="apiCitation"></div>
-  <div class="footer-copyright">
-    © Allan Baisgaard, Aalborg Handelsgymnasie Turøgade
-  </div>
 
   <script>
     // --- Konfiguration ---
@@ -102,7 +98,7 @@
     // --- Indikatorer med både standard & harmoniserede koder ---
     const indicators = [
       { codes:['GDPV_ANNPCT'],                name:'Økonomisk vækst' },
-      { codes:['CPI_YTYPCT','CPIH_YTYPCT'],    name:'Samlet inflation' },
+      { codes:['CPI_YTYPCT','CPIH_YTYPCT'],   name:'Samlet inflation' },
       { codes:['PCORE_YTYPCT','PCOREH_YTYPCT'],name:'Kerneinflation' },
       { codes:['UNR'],                        name:'Arbejdsløshedsprocenten' },
       { codes:['XGSV_ANNPCT'],                name:'Eksport' },
@@ -315,7 +311,6 @@
     document.addEventListener('DOMContentLoaded',()=>{
       populateCountryDropdowns();
 
-      // indsæt API-citation med nyeste dato
       document.getElementById('apiCitation').textContent =
         `Source: OECD. Data extracted from the OECD SDMX API (https://sdmx.oecd.org). © OECD. All rights reserved. Use subject to OECD Terms and Conditions. Nyeste data: ${endPeriod}.`;
 
@@ -356,6 +351,10 @@
       };
     });
   </script>
+
+  <div class="footer-copyright">
+    © Allan Baisgaard, Aalborg Handelsgymnasie Turøgade
+  </div>
 
 </body>
 </html>
