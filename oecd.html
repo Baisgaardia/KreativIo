@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>OECD Data & Sammenligning & Grafer</title>
+  <title>OECD Data &amp; Sammenligning &amp; Grafer</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 2rem; }
     .controls, #graphControls { display:flex; gap:.5em; flex-wrap:wrap; align-items:center; margin-bottom:1rem; }
@@ -13,15 +13,29 @@
     th { background:#f2f2f2; }
     tr:nth-child(even){ background:#fafafa; }
     canvas#chart { max-width:700px; max-height:400px; width:100%; height:auto; margin-top:1rem; }
+    .footer-copyright {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      font-size: 0.8rem;
+      color: #555;
+    }
+    .api-citation {
+      position: fixed;
+      bottom: 1rem;
+      left: 1rem;
+      font-size: 0.8rem;
+      color: #555;
+      max-width: 40%;
+      text-align: left;
+    }
   </style>
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- SheetJS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
-  <h1>OECD Data & Sammenligning & Grafer</h1>
+  <h1>OECD Data &amp; Sammenligning &amp; Grafer</h1>
   <div class="controls">
     <label>Land 1:
       <select id="country1">
@@ -54,12 +68,19 @@
     <footer>&copy; Allan Baisgaard</footer>
   </div>
 
+  <div class="api-citation" id="apiCitation"></div>
+  <div class="footer-copyright">
+    © Allan Baisgaard, Aalborg Handelsgymnasie Turøgade
+  </div>
+
   <script>
     // --- Konfiguration ---
-    const proxyUrl  = 'https://corsproxy.io/?url=';
-    const apiBase   = 'https://sdmx.oecd.org/public/rest/data/';
-    const flow      = 'OECD.ECO.MAD,DSD_EO@DF_EO,1.2/';
-    const params    = '?startPeriod=2015&endPeriod=2024&dimensionAtObservation=TIME_PERIOD';
+    const proxyUrl    = 'https://corsproxy.io/?url=';
+    const apiBase     = 'https://sdmx.oecd.org/public/rest/data/';
+    const flow        = 'OECD.ECO.MAD,DSD_EO@DF_EO,1.2/';
+    const startPeriod = 2015;
+    const endPeriod   = 2024;
+    const params      = `?startPeriod=${startPeriod}&endPeriod=${endPeriod}&dimensionAtObservation=TIME_PERIOD`;
 
     // --- Landeliste ---
     const countries = [
@@ -80,28 +101,27 @@
 
     // --- Indikatorer med både standard & harmoniserede koder ---
     const indicators = [
-      { codes:['GDPV_ANNPCT'],               name:'Økonomisk vækst' },
-      { codes:['CPI_YTYPCT','CPIH_YTYPCT'],   name:'Samlet inflation' },
+      { codes:['GDPV_ANNPCT'],                name:'Økonomisk vækst' },
+      { codes:['CPI_YTYPCT','CPIH_YTYPCT'],    name:'Samlet inflation' },
       { codes:['PCORE_YTYPCT','PCOREH_YTYPCT'],name:'Kerneinflation' },
-      { codes:['UNR'],                       name:'Arbejdsløshedsprocenten' },
-      { codes:['XGSV_ANNPCT'],               name:'Eksport' },
-      { codes:['MGSV_ANNPCT'],               name:'Import' },
-      { codes:['CBGDPR'],                    name:'Betalingsbalancen i % af BNP' },
-      { codes:['NLGXQ'],                     name:'Offentligt underskud i % af BNP' },
-      { codes:['GGFLMQ'],                    name:'Offentlig gæld i % af BNP' },
-      { codes:['IRL'],                       name:'Den lange obligationsrente' },
-      { codes:['CPV_ANNPCT'],                name:'Privat forbrug' },
-      { codes:['CGV_ANNPCT'],                name:'Offentligt forbrug' },
-      { codes:['ITV_ANNPCT'],                name:'Offentlige investeringer' },
-      { codes:['PDTY'],                      name:'Produktivitet (volumenindeks)' },
-      { codes:['CPIDR'],                     name:'Priskonkurrence, indeks 2021' },
-      { codes:['ULCDR'],                     name:'Lønomkostninger, indeks 2021' }
+      { codes:['UNR'],                        name:'Arbejdsløshedsprocenten' },
+      { codes:['XGSV_ANNPCT'],                name:'Eksport' },
+      { codes:['MGSV_ANNPCT'],                name:'Import' },
+      { codes:['CBGDPR'],                     name:'Betalingsbalancen i % af BNP' },
+      { codes:['NLGXQ'],                      name:'Offentligt underskud i % af BNP' },
+      { codes:['GGFLMQ'],                     name:'Offentlig gæld i % af BNP' },
+      { codes:['IRL'],                        name:'Den lange obligationsrente' },
+      { codes:['CPV_ANNPCT'],                 name:'Privat forbrug' },
+      { codes:['CGV_ANNPCT'],                 name:'Offentligt forbrug' },
+      { codes:['ITV_ANNPCT'],                 name:'Offentlige investeringer' },
+      { codes:['PDTY'],                       name:'Produktivitet (volumenindeks)' },
+      { codes:['CPIDR'],                      name:'Priskonkurrence, indeks 2021' },
+      { codes:['ULCDR'],                      name:'Lønomkostninger, indeks 2021' }
     ];
 
     let latest1, latest2, years = [];
     let graphMap, graphYears, graphChart;
 
-    // Fyld dropdowns
     function populateCountryDropdowns() {
       const c1 = document.getElementById('country1');
       const c2 = document.getElementById('country2');
@@ -111,7 +131,6 @@
       });
     }
 
-    // Hent SDMX JSON for ét land
     async function fetchRaw(country) {
       const codes   = indicators.flatMap(ind=>ind.codes).join('+');
       const url     = apiBase + flow + `${country}.${codes}.A` + params;
@@ -123,21 +142,18 @@
       return resp.json();
     }
 
-    // Parse SDMX → { years, dataMap: { code → {year→value} } }
     function parseData(json) {
       const struct = json.structure || (json.data && json.data.structure);
       const sdims  = struct.dimensions.series;
       const odoms  = struct.dimensions.observation[0].values.map(v=>v.id);
       if (!years.length) years = odoms.slice().sort((a,b)=>+a-+b);
 
-      // init råmap for alle koder
       const rawMap = {};
       indicators.flatMap(ind=>ind.codes).forEach(c=>{
         rawMap[c] = {};
         years.forEach(y=> rawMap[c][y] = null);
       });
 
-      // fyld råmap
       const series = (json.dataSets||json.data.dataSets)[0].series;
       const idx    = sdims.findIndex(d=>d.values.length>1);
       Object.entries(series).forEach(([key,serie])=>{
@@ -149,7 +165,6 @@
         });
       });
 
-      // sammensæt dataMap per indikator (første kode med data vinder)
       const dataMap = {};
       indicators.forEach(ind=>{
         dataMap[ind.codes[0]] = {};
@@ -165,12 +180,11 @@
       return { years, dataMap };
     }
 
-    // Enkelttabel
     function buildTable(p) {
       const tbl = document.createElement('table');
       const head = tbl.createTHead().insertRow();
       head.insertCell().textContent = 'Nøgletal \\ År';
-      years.forEach(y=> head.insertCell().textContent = y );
+      years.forEach(y=> head.insertCell().textContent = y);
       const body = tbl.createTBody();
       indicators.forEach(ind=>{
         const r = body.insertRow();
@@ -184,26 +198,20 @@
       return tbl;
     }
 
-    // Sammenligningstabel m. to underkolonner per år
     function buildComparison(p1,p2,c1,c2) {
       const tbl = document.createElement('table');
       const ths = tbl.createTHead();
-      // 1. række: år colspan=2
       const r1 = ths.insertRow();
       r1.insertCell().rowSpan = 2;
       r1.cells[0].textContent = 'Nøgletal \\ År';
       years.forEach(y=>{
-        const c = r1.insertCell();
-        c.colSpan = 2;
-        c.textContent = y;
+        const c = r1.insertCell(); c.colSpan = 2; c.textContent = y;
       });
-      // 2. række: landnavne
       const r2 = ths.insertRow();
       years.forEach(_=>{
         r2.insertCell().textContent = c1;
         r2.insertCell().textContent = c2;
       });
-      // body
       const body = tbl.createTBody();
       indicators.forEach(ind=>{
         const r = body.insertRow();
@@ -219,7 +227,6 @@
       return tbl;
     }
 
-    // Download Excel (Land 1)
     function downloadExcel() {
       if (!latest1) return;
       const aoa = [['Nøgletal \\ År', ...years]];
@@ -238,7 +245,6 @@
       XLSX.writeFile(wb, `OECD_${document.getElementById('country1').value}.xlsx`);
     }
 
-    // Graf-værktøj (Land 1)
     function populateGraphControls(){
       const f   = document.getElementById('filterInput');
       const iS  = document.getElementById('indicatorSelect');
@@ -260,20 +266,20 @@
       f.oninput = ()=> {
         const term = f.value.toLowerCase();
         Array.from(iS.options).forEach(o=>
-          o.style.display = o.text.toLowerCase().includes(term)? '': 'none'
+          o.style.display = o.text.toLowerCase().includes(term)? '' : 'none'
         );
       };
-      l5.onclick = ()=>{
+      l5.onclick = ()=> {
         const opts = Array.from(yS.options);
         const last = graphYears.slice(-5).map(String);
         opts.forEach(o=> o.selected = o.value!=='all' && last.includes(o.value));
       };
-      l10.onclick = ()=>{
+      l10.onclick = ()=> {
         const opts = Array.from(yS.options);
         const last = graphYears.slice(-10).map(String);
         opts.forEach(o=> o.selected = o.value!=='all' && last.includes(o.value));
       };
-      pB.onclick = ()=>{
+      pB.onclick = ()=> {
         const selCodes = Array.from(iS.options)
                           .filter(o=>o.selected && o.style.display!=='none')
                           .map(o=>o.value);
@@ -306,9 +312,13 @@
       };
     }
 
-    // Init & events
     document.addEventListener('DOMContentLoaded',()=>{
       populateCountryDropdowns();
+
+      // indsæt API-citation med nyeste dato
+      document.getElementById('apiCitation').textContent =
+        `Source: OECD. Data extracted from the OECD SDMX API (https://sdmx.oecd.org). © OECD. All rights reserved. Use subject to OECD Terms and Conditions. Nyeste data: ${endPeriod}.`;
+
       document.getElementById('btnFetch').onclick = async ()=>{
         const c1 = document.getElementById('country1').value;
         const c2 = document.getElementById('country2').value;
