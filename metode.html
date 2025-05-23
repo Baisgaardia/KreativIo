@@ -28,6 +28,7 @@
     <div id="questionsArea">
         <div id="question"></div>
         <textarea id="answer"></textarea><br>
+        <button id="prevBtn" onclick="prev()" style="display:none; margin-right:10px;">Tilbage</button>
         <button onclick="next()">Næste</button>
     </div>
 
@@ -41,66 +42,80 @@
 <script src="https://cdn.jsdelivr.net/npm/docx@8.3.0/build/index.umd.js"></script>
 <script>
 const questions = [
-"Hvad er sammenhængen imellem den overordnede temaramme og dit valgte emne? Argumentér.",
-"Hvorfor har du netop valgt de to fag, som du har udvalgt til opgaven, og hvordan bidrager de til at besvare din problemformulering? Hvordan spiller de to fag sammen?",
-"Hvorfor har du netop valgt at beskæftige dig med det land, som du arbejder med, og hvordan passer det ind i SOP-temarammen? Hvad er dit underemne, og hvad er relevansen?",
-"Hvilke metoder/analyseredskaber har du valgt i dine fag? Hvordan bidrager metoden(erne)/analyse(rne) til at besvare din problemformulering? Hvad er styrkerne og svaghederne ved din valgte metode/analyse?",
-"Hvorfor laver du en komparativ analyse? Eller hvorfor har du valgt en specifik type analyse i dit sprogfag? Hvad kan den ift. problemformuleringen, og hvad kan den ikke?",
-"Hvilke andre metoder/analyser kunne du også have valgt? Hvorfor var disse ikke oplagte i forhold til din problemformulering?",
-"Hvorfor har du netop valgt det analyseobjekt, som du vil arbejde med i din opgave? Hvad kan det specifikt i forhold til at besvare noget i din analyse? Hvilke andre emner, bøger, rapporter mv. kunne være oplagte, og hvorfor har du fravalgt dem?",
-"Hvilke kvantitative data anvender du i din opgave, og hvorfor netop disse data? Hvordan bidrager de til at besvare din problemformulering? Skal du være OBS på noget med tallene? Var andre tal lige så oplagte, og i så fald, hvorfor har du valgt dem fra?",
-"Hvilke kvalitative data anvender du i din opgave?",
-"Hvilke andre analyseredskaber kunne du have brugt i dine fag, og hvordan ville det have påvirket opgaven?",
-"Lav en kort kildekritik af en central kvantitativ eller kvalitativ kilde, du anvender. Hvordan kan kilden være subjektiv, og hvordan håndterer du det i din opgave?",
-"Hvordan forholder du dig kritisk til tal fra landes hjemmesider eller statistikker fra andre kilder?",
-"Hvordan kan subjektive kilder stadig bruges, og hvordan vil du forklare deres anvendelse i din opgave?"
+    "Hvad er sammenhængen imellem den overordnede temaramme og dit valgte emne? Argumentér.",
+    "Hvorfor har du netop valgt de to fag, som du har udvalgt til opgaven, og hvordan bidrager de til at besvare din problemformulering? Hvordan spiller de to fag sammen?",
+    "Hvorfor har du netop valgt at beskæftige dig med det land, som du arbejder med, og hvordan passer det ind i SOP-temarammen? Hvad er dit underemne, og hvad er relevansen?",
+    "Hvilke metoder/analyseredskaber har du valgt i dine fag? Hvordan bidrager metoden(erne)/analyse(rne) til at besvare din problemformulering? Hvad er styrkerne og svaghederne ved din valgte metode/analyse?",
+    "Hvorfor laver du en komparativ analyse? Eller hvorfor har du valgt en specifik type analyse i dit sprogfag? Hvad kan den ift. problemformuleringen, og hvad kan den ikke?",
+    "Hvilke andre metoder/analyser kunne du også have valgt? Hvorfor var disse ikke oplagte i forhold til din problemformulering?",
+    "Hvorfor har du netop valgt det analyseobjekt, som du vil arbejde med i din opgave? Hvad kan det specifikt i forhold til at besvare noget i din analyse? Hvilke andre emner, bøger, rapporter mv. kunne være oplagte, og hvorfor har du fravalgt dem?",
+    "Hvilke kvantitative data anvender du i din opgave, og hvorfor netop disse data? Hvordan bidrager de til at besvare din problemformulering? Skal du være OBS på noget med tallene? Var andre tal lige så oplagte, og i så fald, hvorfor har du valgt dem fra?",
+    "Hvilke kvalitative data anvender du i din opgave?",
+    "Hvilke andre analyseredskaber kunne du have brugt i dine fag, og hvordan ville det have påvirket opgaven?",
+    "Lav en kort kildekritik af en central kvantitativ eller kvalitativ kilde, du anvender. Hvordan kan kilden være subjektiv, og hvordan håndterer du det i din opgave?",
+    "Hvordan forholder du dig kritisk til tal fra landes hjemmesider eller statistikker fra andre kilder?",
+    "Hvordan kan subjektive kilder stadig bruges, og hvordan vil du forklare deres anvendelse i din opgave?"
 ];
 
 let answers = [], current = 0;
 
-function showQuestion(){
+function showQuestion(prefill = '') {
     document.getElementById('question').innerText = questions[current];
-    document.getElementById('answer').value = "";
-    document.getElementById('bar').style.width = (current/questions.length)*100 + '%';
+    document.getElementById('answer').value = prefill;
+    document.getElementById('bar').style.width = ((current) / questions.length) * 100 + '%';
+    document.getElementById('prevBtn').style.display = current > 0 ? 'inline-block' : 'none';
 }
 
-function next(){
+function next() {
     const ans = document.getElementById('answer').value.trim();
-    if(ans){
+    if (ans) {
         answers.push({q: questions[current], a: ans});
         current++;
-        if(current < questions.length){ showQuestion(); } else { showPreview(); }
+        if (current < questions.length) {
+            showQuestion();
+        } else {
+            showPreview();
+        }
     } else {
-        alert("Skriv venligst et svar før du fortsætter.");
+        alert('Skriv venligst et svar før du fortsætter.');
     }
 }
 
-function showPreview(){
+function prev() {
+    if (current > 0) {
+        const lastAnswer = answers.pop().a;
+        current--;
+        showQuestion(lastAnswer);
+    }
+}
+
+function showPreview() {
     document.getElementById('questionsArea').style.display = 'none';
     document.getElementById('previewArea').style.display = 'block';
     document.getElementById('bar').style.width = '100%';
 
-    const fullText = answers.map(item => `Spørgsmål: ${item.q}\nSvar: ${item.a}`).join("\n\n");
+    const fullText = answers.map(item => `Spørgsmål: ${item.q}\nSvar: ${item.a}`).join('\n\n');
     document.getElementById('preview').value = fullText;
 }
 
-async function downloadDoc(){
-    const {Document,Packer,Paragraph,TextRun} = docx;
-    const paragraphs = answers.flatMap(item=>[
-        new Paragraph({children:[new TextRun({text:`Spørgsmål: ${item.q}`,bold:true})], spacing:{after:100}}),
-        new Paragraph({children:[new TextRun(item.a)], spacing:{after:300}})
+async function downloadDoc() {
+    const {Document, Packer, Paragraph, TextRun} = docx;
+    const paragraphs = answers.flatMap(item => [
+        new Paragraph({children: [new TextRun({text: `Spørgsmål: ${item.q}`, bold: true})], spacing: {after: 100}}),
+        new Paragraph({children: [new TextRun(item.a)], spacing: {after: 300}})
     ]);
 
-    const doc = new Document({sections:[{children: paragraphs}]});
+    const doc = new Document({sections: [{children: paragraphs}]});
     const blob = await Packer.toBlob(doc);
-    const link = document.createElement("a");
+    const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = "SOP_metode.docx";
+    link.download = 'SOP_metode.docx';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 }
 
+// Initial call
 showQuestion();
 </script>
 </body>
