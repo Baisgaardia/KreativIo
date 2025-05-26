@@ -86,12 +86,9 @@
   </footer>
 
   <script>
-    // Konfiguration
-    const proxyUrl = '';
-    const apiBase  = 'https://api.worldbank.org/v2/country/';
-    const params   = '?format=json&per_page=1000';
+    const apiBase = 'https://api.worldbank.org/v2/country/';
+    const params  = '?format=json&per_page=1000';
 
-    // Indikatorer
     const indicators = [
       { code: 'AG.LND.TOTL.K2',    name: 'Areal (kvadratkilometer)' },
       { code: 'SP.POP.GROW',        name: 'Befolkningstilvæksten (årlig %)' },
@@ -136,111 +133,111 @@
       { code: 'SH.H2O.SMDW.UR.ZS',  name: 'Sikkert forvaltet drikkevand, byer (%)' }
     ];
 
-    // Alle år fra 1960–2024
     let years = [];
     for (let y = 1960; y <= 2024; y++) years.push(String(y));
     let selectedYears = [...years];
     let latest1, latest2, graphChart;
 
-    // Populate countries
     function populateCountryDropdowns() {
       fetch(apiBase + 'all?format=json&per_page=300')
-        .then(r => r.json())
+        .then(res => res.json())
         .then(json => {
-          const list = json[1].filter(c => c.region.value !== 'Aggregates');
-          list.forEach(c => {
-            document.getElementById('country1').append(new Option(c.name, c.id));
-            document.getElementById('country2').append(new Option(c.name, c.id));
-          });
+          json[1].filter(c => c.region.value !== 'Aggregates')
+            .forEach(c => {
+              document.getElementById('country1').append(new Option(c.name, c.id));
+              document.getElementById('country2').append(new Option(c.name, c.id));
+            });
         });
     }
 
-    // Initialize year modal
     function initializeYearModal() {
-      const modal = document.getElementById('yearModal');
-      const list = document.getElementById('yearList');
+      const modal  = document.getElementById('yearModal');
+      const list   = document.getElementById('yearList');
       const search = document.getElementById('yearSearch');
 
-      function renderList(filter = '') {
+      function render(filter = '') {
         list.innerHTML = '';
         years.filter(y => y.includes(filter)).forEach(y => {
           const lbl = document.createElement('label');
-          const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = y;
+          const cb  = document.createElement('input');
+          cb.type    = 'checkbox';
+          cb.value   = y;
           cb.checked = selectedYears.includes(y);
-          lbl.append(cb, ' ', y);
+         lbl.append(cb, ' ', y);
           list.append(lbl);
         });
       }
-      renderList();
+      render();
 
-      document.getElementById('openYearModal').onclick = () => { modal.style.display = 'block'; search.value=''; renderList(); };
-      document.getElementById('closeYearModal').onclick = () => modal.style.display = 'none';
-      document.getElementById('selectAllYears').onclick = () => { selectedYears = [...years]; renderList(search.value); };
-      document.getElementById('clearAllYears').onclick = () => { selectedYears = []; renderList(search.value); };
-      search.oninput = () => renderList(search.value);
-      document.getElementById('applyYears').onclick = () => {
-        selectedYears = Array.from(list.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-        modal.style.display = 'none';
-      };
+      document.getElementById('openYearModal').onclick   = () => { modal.style.display = 'block'; search.value=''; render(); };
+      document.getElementById('closeYearModal').onclick  = () => modal.style.display = 'none';
+      document.getElementById('selectAllYears').onclick  = () => { selectedYears = [...years]; render(search.value); };
+      document.getElementById('clearAllYears').onclick   = () => { selectedYears = []; render(search.value); };
+      search.oninput = () => render(search.value);
+      document.getElementById('applyYears').onclick     = () => { selectedYears = Array.from(list.querySelectorAll('input[type="checkbox"]:checked')).map(cb=>cb.value); modal.style.display='none'; };
       window.onclick = e => { if (e.target === modal) modal.style.display = 'none'; };
     }
 
-    // Fetch raw
     async function fetchRaw(country) {
       const dataMap = {};
-      indicators.forEach(ind => { dataMap[ind.code] = {}; selectedYears.forEach(y => dataMap[ind.code][y] = null); });
+      indicators.forEach(ind => {
+        dataMap[ind.code] = {};
+        selectedYears.forEach(y => dataMap[ind.code][y] = null);
+      });
       await Promise.all(indicators.map(ind =>
         fetch(apiBase + country + '/indicator/' + ind.code + params)
-          .then(r => r.json())
-          .then(json => json[1].forEach(o => {
-            if (selectedYears.includes(o.date)) dataMap[ind.code][o.date] = +o.value;
-          }))
+          .then(res => res.json())
+          .then(json => {
+            (json[1]||[]).forEach(o => { if (selectedYears.includes(o.date)) dataMap[ind.code][o.date] = +o.value; });
+          })
       ));
       return { years: selectedYears, dataMap };
     }
 
-    // 3) Byg tabel
     function buildTable(p) {
       const tbl = document.createElement('table');
-      const yearsToShow = p.years && p.years.length ? p.years : selectedYears;
       const head = tbl.createTHead().insertRow();
       head.insertCell().textContent = 'Nøgletal \ År';
-      yearsToShow.forEach(y => head.insertCell().textContent = y);
+      p.years.forEach(y => head.insertCell().textContent = y);
       const body = tbl.createTBody();
       indicators.forEach(ind => {
-        const row = body.insertRow(); row.insertCell().textContent = ind.name;
-        yearsToShow.forEach(y => {
-          const v = p.dataMap[ind.code] ? p.dataMap[ind.code][y] : null;
+        const row = body.insertRow();
+        row.insertCell().textContent = ind.name;
+        p.years.forEach(y => {
+          const v = p.dataMap[ind.code][y];
           row.insertCell().textContent = v != null ? v.toFixed(2) : '–';
         });
       });
       return tbl;
     }
 
-    // 4) Byg sammenligning
     function buildComparison(p1, p2, c1, c2) {
       const tbl = document.createElement('table');
       const head = tbl.createTHead();
-      const r1 = head.insertRow(); r1.insertCell().rowSpan=2; r1.cells[0].textContent='Nøgletal \ År';
-      p1.years.forEach(y=>{ const c=r1.insertCell(); c.colSpan=2; c.textContent=y; });
-      const r2 = head.insertRow(); p1.years.forEach(_=>{ r2.insertCell().textContent=c1; r2.insertCell().textContent=c2; });
+      const r1 = head.insertRow();
+      r1.insertCell().rowSpan = 2;
+      r1.cells[0].textContent = 'Nøgletal \ År';
+      p1.years.forEach(y => { const c = r1.insertCell(); c.colSpan = 2; c.textContent = y; });
+      const r2 = head.insertRow();
+      p1.years.forEach(_ => { r2.insertCell().textContent = c1; r2.insertCell().textContent = c2; });
       const body = tbl.createTBody();
-      indicators.forEach(ind=>{
-        const row = body.insertRow(); row.insertCell().textContent=ind.name;
-        p1.years.forEach(y=>{
-          const v1 = p1.dataMap[ind.code][y], v2 = p2.dataMap[ind.code][y];
-          row.insertCell().textContent = v1!=null? v1.toFixed(2):'–';
-          row.insertCell().textContent = v2!=null? v2.toFixed(2):'–';
+      indicators.forEach(ind => {
+        const row = body.insertRow(); row.insertCell().textContent = ind.name;
+        p1.years.forEach(y => {
+          const v1 = p1.dataMap[ind.code][y];
+          const v2 = p2.dataMap[ind.code][y];
+          row.insertCell().textContent = v1 != null ? v1.toFixed(2) : '–';
+          row.insertCell().textContent = v2 != null ? v2.toFixed(2) : '–';
         });
       });
       return tbl;
     }
 
-    // 5) Download Excel
     function downloadExcel() {
       const aoa = [['Nøgletal \ År', ...latest1.years]];
-      indicators.forEach(ind=>{
-        const row=[ind.name]; latest1.years.forEach(y=>{ const v=latest1.dataMap[ind.code][y]; row.push(v!=null?+v.toFixed(2):null); });
+      indicators.forEach(ind => {
+        const row = [ind.name];
+        latest1.years.forEach(y => { const v = latest1.dataMap[ind.code][y]; row.push(v != null ? +v.toFixed(2) : null); });
         aoa.push(row);
       });
       const wb = XLSX.utils.book_new();
@@ -249,70 +246,53 @@
       XLSX.writeFile(wb, `WorldBank_${document.getElementById('country1').value}.xlsx`);
     }
 
-    // 6) Populate grafer
     function populateGraphControls() {
-      const fi = document.getElementById('filterInput');
-      const iSel = document.getElementById('indicatorSelect');
-      const ySel = document.getElementById('yearSelect');
-      [fi, iSel, ySel, document.getElementById('last5Btn'), document.getElementById('last10Btn'), document.getElementById('plotBtn')]
-        .forEach(el=>el.disabled=false);
-      iSel.innerHTML=''; indicators.forEach(ind=>iSel.append(new Option(ind.name, ind.code)));
-      ySel.innerHTML=''; p1.years.forEach(y=>ySel.append(new Option(y,y)));
-      fi.oninput = ()=>{ const v=fi.value.toLowerCase(); Array.from(iSel.options).forEach(o=>o.hidden=!o.text.includes(v)); };
-      document.getElementById('last5Btn').onclick = ()=>{ const rec = p1.years.slice(-5); Array.from(ySel.options).forEach(o=>o.selected=rec.includes(o.value)); };
-      document.getElementById('last10Btn').onclick = ()=>{ const rec = p1.years.slice(-10); Array.from(ySel.options).forEach(o=>o.selected=rec.includes(o.value)); };
-      document.getElementById('plotBtn').onclick = ()=>{
-        const selI = Array.from(iSel.selectedOptions).map(o=>o.value);
-        const selY = Array.from(ySel.selectedOptions).map(o=>o.value);
-        const ds = selI.map(code=>({ label:indicators.find(i=>i.code===code).name, data:selY.map(y=>latest1.dataMap[code][y]), fill:false, borderWidth:2 }));
-        if(graphChart) graphChart.destroy();
+      const fi  = document.getElementById('filterInput');
+      const iS  = document.getElementById('indicatorSelect');
+      const yS  = document.getElementById('yearSelect');
+      [fi, iS, yS,
+       document.getElementById('last5Btn'),
+       document.getElementById('last10Btn'),
+       document.getElementById('plotBtn')]
+        .forEach(el => el.disabled = false);
+      iS.innerHTML = '';
+      indicators.forEach(ind => iS.append(new Option(ind.name, ind.code)));
+      yS.innerHTML = '';
+      selectedYears.forEach(y => yS.append(new Option(y, y)));
+      fi.oninput = () => { const val = fi.value.toLowerCase(); Array.from(iS.options).forEach(o => o.hidden = !o.text.includes(val)); };
+      document.getElementById('last5Btn').onclick = () => { const rec = selectedYears.slice(-5); Array.from(yS.options).forEach(o => o.selected = rec.includes(o.value)); };
+      document.getElementById('last10Btn').onclick = () => { const rec = selectedYears.slice(-10); Array.from(yS.options).forEach(o => o.selected = rec.includes(o.value)); };
+      document.getElementById('plotBtn').onclick = () => {
+        const selI = Array.from(iS.selectedOptions).map(o => o.value);
+        const selY = Array.from(yS.selectedOptions).map(o => o.value);
+        const datasets = selI.map(code => ({
+          label: indicators.find(i => i.code === code).name,
+          data: selY.map(y => latest1.dataMap[code][y]),
+          fill: false, borderWidth: 2
+        }));
+        if (graphChart) graphChart.destroy();
         const ctx = document.getElementById('chart').getContext('2d');
-        graphChart = new Chart(ctx, { type:'line', data:{ labels:selY, datasets:ds }, options:{ responsive:true, scales:{ y:{ beginAtZero:false } } } });
+        graphChart = new Chart(ctx, { type: 'line', data: { labels: selY, datasets }, options: { responsive: true, scales: { y: { beginAtZero: false } } } });
       };
     }
-
-    // Event bindings
 
     document.addEventListener('DOMContentLoaded', () => {
       populateCountryDropdowns();
       initializeYearModal();
-
-      // Bind "Hent data" knap
       document.getElementById('btnFetch').onclick = async () => {
         const c1 = document.getElementById('country1').value;
         const c2 = document.getElementById('country2').value;
         if (!c1) return alert('Vælg mindst ét land');
-        const cont = document.getElementById('tableContainer');
-        cont.textContent = 'Henter data…';
+        const cont = document.getElementById('tableContainer'); cont.textContent = 'Henter data…';
         try {
           latest1 = await fetchRaw(c1);
           cont.textContent = '';
-          if (!c2) {
-            cont.append(buildTable(latest1));
-          } else {
-            if (c1 === c2) return alert('Vælg to forskellige lande');
-            latest2 = await fetchRaw(c2);
-            cont.append(buildComparison(latest1, latest2, c1, c2));
-          }
+          if (!c2) cont.append(buildTable(latest1)); else { if (c1===c2) return alert('Vælg to forskellige lande'); latest2 = await fetchRaw(c2); cont.append(buildComparison(latest1, latest2, c1, c2)); }
           document.getElementById('btnExcel').disabled = false;
-        } catch (e) {
-          console.error(e);
-          cont.textContent = 'Fejl ved hentning – se console.';
-        }
+        } catch (e) { console.error(e); cont.textContent = 'Fejl ved hentning – se console.'; }
       };
-
-      // Bind Download Excel
-      document.getElementById('btnExcel').onclick = () => {
-        if (!latest1) return alert('Ingen data at downloade');
-        downloadExcel();
-      };
-
-      // Bind Lav grafer
-      document.getElementById('btnGraphs').onclick = () => {
-        if (!latest1) return alert('Hent data først');
-        document.getElementById('graphSection').style.display = 'block';
-        populateGraphControls();
-      };
+      document.getElementById('btnExcel').onclick = downloadExcel;
+      document.getElementById('btnGraphs').onclick = () => { if (!latest1) return alert('Hent data først'); document.getElementById('graphSection').style.display = 'block'; populateGraphControls(); };
     });
   </script>
 </body>
