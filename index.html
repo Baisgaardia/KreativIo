@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="da">
 <head>
   <meta charset="UTF-8">
@@ -58,7 +58,6 @@
             <p class="mt-2 text-gray-700 dark:text-gray-300">Lav simple kurver</p>
           </a>
         </article>
-        <!-- Ny knap til World Bank data -->
         <article role="region" aria-labelledby="card-title-worldbank" class="bg-white dark:bg-gray-800 rounded-2xl shadow-md transition-transform transition-shadow hover:-translate-y-1 hover:shadow-xl">
           <a href="worldbank.html" class="block p-6">
             <h3 id="card-title-worldbank" class="text-xl font-semibold text-[#7C3AED]">Hent data fra World Bank</h3>
@@ -72,6 +71,20 @@
   <footer class="fixed bottom-2 right-2 text-xs text-gray-600 dark:text-gray-400" role="contentinfo">
     &copy; Allan Baisgaard, Aalborg Handelsgymnasie, Turøgade
   </footer>
+
+  <!-- Besøgstæller -->
+  <div id="visitor-counter" class="fixed bottom-2 left-2 text-xs text-gray-600 dark:text-gray-400">
+    Besøg: <span id="counter">…</span>
+  </div>
+  <script>
+    // CountAPI besøgstæller
+    fetch('https://api.countapi.xyz/hit/allanbaisgaard-landing/visits')
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('counter').innerText = data.value;
+      })
+      .catch(err => console.error('Fejl i besøgstæller:', err));
+  </script>
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
