@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Allan Baisgaard – Landing Page</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tailwind CSS (production build) -->
+  <link href="https://unpkg.com/tailwindcss@^3/dist/tailwind.min.css" rel="stylesheet">
   <style>body{font-family:'Inter',sans-serif;}</style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
@@ -28,63 +29,25 @@
     <section aria-labelledby="sections-heading">
       <h2 id="sections-heading" class="sr-only">Undersider</h2>
       <div class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        <article role="region" aria-labelledby="card-title-oecd" class="bg-white dark:bg-gray-800 rounded-2xl shadow-md transition-transform transition-shadow hover:-translate-y-1 hover:shadow-xl">
-          <a href="oecd.html" class="block p-6">
-            <h3 id="card-title-oecd" class="text-xl font-semibold text-[#7C3AED]">Hent data fra OECD</h3>
-            <p class="mt-2 text-gray-700 dark:text-gray-300">Indsamling af OECD Data ved et klik</p>
-          </a>
-        </article>
-        <article role="region" aria-labelledby="card-title-graphs" class="bg-white dark:bg-gray-800 rounded-2xl shadow-md transition-transform transition-shadow hover:-translate-y-1 hover:shadow-xl">
-          <a href="grafer.html" class="block p-6">
-            <h3 id="card-title-graphs" class="text-xl font-semibold text-[#7C3AED]">Lav grafer og kurver</h3>
-            <p class="mt-2 text-gray-700 dark:text-gray-300">Lav graf og kurver</p>
-          </a>
-        </article>
-        <article role="region" aria-labelledby="card-title-method" class="bg-white dark:bg-gray-800 rounded-2xl shadow-md transition-transform transition-shadow hover:-translate-y-1 hover:shadow-xl">
-          <a href="metode.html" class="block p-6">
-            <h3 id="card-title-method" class="text-xl font-semibold text-[#7C3AED]">Metode spørgsmål</h3>
-            <p class="mt-2 text-gray-700 dark:text-gray-300">Metode eksamensprojekt</p>
-          </a>
-        </article>
-        <article role="region" aria-labelledby="card-title-currency" class="bg-white dark:bg-gray-800 rounded-2xl shadow-md transition-transform transition-shadow hover:-translate-y-1 hover:shadow-xl">
-          <a href="valutakurser.html" class="block p-6">
-            <h3 id="card-title-currency" class="text-xl font-semibold text-[#7C3AED]">Valutakurser kurver</h3>
-            <p class="mt-2 text-gray-700 dark:text-gray-300">Lav kurver til valutakurser</p>
-          </a>
-        </article>
-        <article role="region" aria-labelledby="card-title-simple" class="bg-white dark:bg-gray-800 rounded-2xl shadow-md transition-transform transition-shadow hover:-translate-y-1 hover:shadow-xl">
-          <a href="simple-ue-kurver.html" class="block p-6">
-            <h3 id="card-title-simple" class="text-xl font-semibold text-[#7C3AED]">Simple U/E kurver</h3>
-            <p class="mt-2 text-gray-700 dark:text-gray-300">Lav simple kurver</p>
-          </a>
-        </article>
-        <article role="region" aria-labelledby="card-title-worldbank" class="bg-white dark:bg-gray-800 rounded-2xl shadow-md transition-transform transition-shadow hover:-translate-y-1 hover:shadow-xl">
-          <a href="worldbank.html" class="block p-6">
-            <h3 id="card-title-worldbank" class="text-xl font-semibold text-[#7C3AED]">Hent data fra World Bank</h3>
-            <p class="mt-2 text-gray-700 dark:text-gray-300">Indsamling af World Bank-data ved et klik</p>
-          </a>
-        </article>
+        <!-- Kortene -->
+        <article class="card"><a href="oecd.html"><h3>Hent data fra OECD</h3><p>Indsamling af OECD Data ved et klik</p></a></article>
+        <article class="card"><a href="grafer.html"><h3>Lav grafer og kurver</h3></a></article>
+        <article class="card"><a href="metode.html"><h3>Metode spørgsmål</h3></a></article>
+        <article class="card"><a href="valutakurser.html"><h3>Valutakurser kurver</h3></a></article>
+        <article class="card"><a href="simple-ue-kurver.html"><h3>Simple U/E kurver</h3></a></article>
+        <article class="card"><a href="worldbank.html"><h3>Hent data fra World Bank</h3></a></article>
       </div>
     </section>
   </main>
 
-  <footer class="fixed bottom-2 right-2 text-xs text-gray-600 dark:text-gray-400" role="contentinfo">
+  <footer class="container mx-auto px-4 py-4 text-center text-xs text-gray-600 dark:text-gray-400">
     &copy; Allan Baisgaard, Aalborg Handelsgymnasie, Turøgade
   </footer>
 
-  <!-- Besøgstæller -->
-  <div id="visitor-counter" class="fixed bottom-2 left-2 text-xs text-gray-600 dark:text-gray-400">
-    Besøg: <span id="counter">…</span>
-  </div>
-  <script>
-    // CountAPI besøgstæller (HUSK https://)
-    fetch('https://api.countapi.xyz/hit/allanbaisgaard-landing/visits')
-      .then(res => res.json())
-      .then(data => {
-        document.getElementById('counter').innerText = data.value;
-      })
-      .catch(err => console.error('Fejl i besøgstæller:', err));
-  </script>
+  <!-- Enkel besøgstæller med SVG-badge -->
+  <img src="https://api.countapi.xyz/hit/allanbaisgaard-landing/visits.svg"
+       alt="Besøgstæller"
+       class="fixed bottom-2 left-2" />
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
