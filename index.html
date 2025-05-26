@@ -70,21 +70,8 @@
 
   <footer class="fixed bottom-2 right-2 text-xs text-gray-600 dark:text-gray-400" role="contentinfo">
     &copy; Allan Baisgaard, Aalborg Handelsgymnasie, Turøgade
+    <p id="visitor-count" class="mt-1">Indlæser antal besøg...</p>
   </footer>
-
-  <!-- Besøgstæller -->
-  <div id="visitor-counter" class="fixed bottom-2 left-2 text-xs text-gray-600 dark:text-gray-400">
-    Besøg: <span id="counter">…</span>
-  </div>
-  <script>
-    // CountAPI besøgstæller
-    fetch('https://api.countapi.xyz/hit/allanbaisgaard-landing/visits')
-      .then(res => res.json())
-      .then(data => {
-        document.getElementById('counter').innerText = data.value;
-      })
-      .catch(err => console.error('Fejl i besøgstæller:', err));
-  </script>
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -92,6 +79,16 @@
       window.addEventListener('scroll', function() {
         heroHeading.classList.toggle('opacity-0', window.scrollY > 150);
       });
+      // Besøgstæller via CountAPI (bruger countapi.xyz i stedet for api.countapi.xyz)
+      const countEl = document.getElementById('visitor-count');
+      fetch('https://countapi.xyz/hit/allanbaisgaardlanding/visits')
+        .then(res => res.json())
+        .then(data => {
+          countEl.innerText = `Besøg: ${data.value}`;
+        })
+        .catch(() => {
+          countEl.innerText = 'Antal besøg kunne ikke indlæses';
+        });
     });
   </script>
 
