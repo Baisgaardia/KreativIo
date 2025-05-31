@@ -3,55 +3,69 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>OECD – tabel, grafer &amp; notatgenerator</title>
+  <title>OECD Data &amp; Sammenligning &amp; Grafer</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 2rem; }
-    .controls, #graphControls { display: flex; gap: .6em; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
-    select, button, input { font-size: 1rem; padding: .5em; }
-    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
-    th, td { border: 1px solid #ddd; padding: .5em; text-align: center; white-space: nowrap; }
-    th { background: #f2f2f2; }
-    tr:nth-child(even) { background: #fafafa; }
-    #assignmentContainer { margin-top: 2rem; padding: 1rem; border: 1px solid #ccc; background: #fafafa; white-space: pre-wrap; }
-    #graphSection { margin-top: 2rem; }
-    canvas#chart { max-width: 700px; max-height: 400px; width: 100%; height: auto; margin-top: 1rem; }
-    .api-citation { position: fixed; bottom: 1rem; left: 1rem; font-size: .8rem; color: #555; max-width: 40%; text-align: left; }
-    .footer-copyright { position: fixed; bottom: 1rem; right: 1rem; font-size: .8rem; color: #555; }
+    .controls, #graphControls { display:flex; gap:.5em; flex-wrap:wrap; align-items:center; margin-bottom:1rem; }
+    select, button, input[type="text"] { font-size:1rem; padding:.5em; }
+    table { border-collapse:collapse; width:100%; margin-top:1rem; }
+    th, td { border:1px solid #ddd; padding:.5em; text-align:center; white-space:nowrap; }
+    th { background:#f2f2f2; }
+    tr:nth-child(even){ background:#fafafa; }
+    canvas#chart { max-width:700px; max-height:400px; width:100%; height:auto; margin-top:1rem; }
+    .footer-copyright {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      font-size: 0.8rem;
+      color: #555;
+    }
+    .api-citation {
+      position: fixed;
+      bottom: 1rem;
+      left: 1rem;
+      font-size: 0.8rem;
+      color: #555;
+      max-width: 40%;
+      text-align: left;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
-  <h1>OECD – tabel, grafer &amp; notatgenerator</h1>
-
+  <h1>OECD Data &amp; Sammenligning &amp; Grafer</h1>
   <div class="controls">
-    <label>Land:
+    <label>Land 1:
       <select id="country1">
-        <option disabled selected value="">– vælg land –</option>
+        <option value="" disabled selected>– vælg land –</option>
+      </select>
+    </label>
+    <label>Land 2 (valgfri):
+      <select id="country2">
+        <option value="" disabled selected>– vælg land –</option>
       </select>
     </label>
     <button id="btnFetch">Hent data</button>
-    <button id="btnGenerate">Generer opgave</button>
-    <button id="infoBtn">ℹ️ Struktur</button>
-    <button id="btnExcel" disabled>Download Excel</button>
+    <button id="btnExcel" disabled>Download Excel (Land 1)</button>
     <button id="btnGraphs">Lav grafer</button>
   </div>
 
   <div id="tableContainer"></div>
-  <div id="assignmentContainer"></div>
 
   <div id="graphSection" style="display:none">
-    <h2>Graf-værktøj (Land)</h2>
+    <h2>Graf-værktøj (Land 1)</h2>
     <div id="graphControls">
-      <input id="filterInput" placeholder="Søg indikator…" disabled>
+      <input type="text" id="filterInput" placeholder="Søg indikator…" disabled/>
       <select id="indicatorSelect" multiple size="8" disabled></select>
-      <select id="yearSelect" multiple size="6" disabled></select>
+      <select id="yearSelect"      multiple size="6" disabled></select>
       <button id="last5Btn" disabled>Seneste 5 år</button>
       <button id="last10Btn" disabled>Seneste 10 år</button>
-      <button id="plotBtn" disabled>Tegn graf</button>
+      <button id="plotBtn"  disabled>Tegn graf</button>
     </div>
     <canvas id="chart"></canvas>
+    <footer>&copy; Allan Baisgaard</footer>
   </div>
 
   <div class="api-citation" id="apiCitation"></div>
@@ -59,351 +73,289 @@
     © Allan Baisgaard, Aalborg Handelsgymnasie Turøgade
   </div>
 
-<script>
-  // Små hjælpefunktioner
-  const $ = id => document.getElementById(id);
+  <script>
+    // --- Konfiguration ---
+    const proxyUrl    = 'https://corsproxy.io/?url=';
+    const apiBase     = 'https://sdmx.oecd.org/public/rest/data/';
+    const flow        = 'OECD.ECO.MAD,DSD_EO@DF_EO,1.2/';
+    const startPeriod = 2015;
+    const endPeriod   = 2024;
+    const params      = `?startPeriod=${startPeriod}&endPeriod=${endPeriod}&dimensionAtObservation=TIME_PERIOD`;
 
-  // Konfiguration
-  const proxyUrl  = 'https://corsproxy.io/?url=';
-  const apiBase   = 'https://sdmx.oecd.org/public/rest/data/';
-  const flow      = 'OECD.ECO.MAD,DSD_EO@DF_EO,1.2/';
-  const startYear = 2015, endYear = 2024;
-  const params    = `?startPeriod=${startYear}&endPeriod=${endYear}&dimensionAtObservation=TIME_PERIOD`;
+    // --- Landeliste ---
+    const countries = [
+      {code:'AUS',name:'Australien'},{code:'AUT',name:'Østrig'},{code:'BEL',name:'Belgien'},
+      {code:'CAN',name:'Canada'},{code:'CHL',name:'Chile'},{code:'CRI',name:'Costa Rica'},
+      {code:'CZE',name:'Tjekkiet'},{code:'DEU',name:'Tyskland'},{code:'DNK',name:'Danmark'},
+      {code:'EST',name:'Estland'},{code:'FIN',name:'Finland'},{code:'FRA',name:'Frankrig'},
+      {code:'GBR',name:'Storbritannien'},{code:'GRC',name:'Grækenland'},{code:'HUN',name:'Ungarn'},
+      {code:'IRL',name:'Irland'},{code:'ISR',name:'Israel'},{code:'ITA',name:'Italien'},
+      {code:'JPN',name:'Japan'},{code:'KOR',name:'Sydkorea'},{code:'LVA',name:'Letland'},
+      {code:'LTU',name:'Litauen'},{code:'LUX',name:'Luxembourg'},{code:'MEX',name:'Mexico'},
+      {code:'NLD',name:'Nederlandene'},{code:'NOR',name:'Norge'},{code:'NZL',name:'New Zealand'},
+      {code:'POL',name:'Polen'},{code:'PRT',name:'Portugal'},{code:'SVK',name:'Slovakiet'},
+      {code:'SVN',name:'Slovenien'},{code:'ESP',name:'Spanien'},{code:'SWE',name:'Sverige'},
+      {code:'CHE',name:'Schweiz'},{code:'TUR',name:'Tyrkiet'},{code:'USA',name:'USA'},
+      {code:'COL',name:'Colombia'}
+    ];
 
-  // Lande
-  const countries = [
-    {code:'AUS',name:'Australien'},{code:'AUT',name:'Østrig'},{code:'BEL',name:'Belgien'},
-    {code:'CAN',name:'Canada'},{code:'CHL',name:'Chile'},{code:'CRI',name:'Costa Rica'},
-    {code:'CZE',name:'Tjekkiet'},{code:'DEU',name:'Tyskland'},{code:'DNK',name:'Danmark'},
-    {code:'EST',name:'Estland'},{code:'FIN',name:'Finland'},{code:'FRA',name:'Frankrig'},
-    {code:'GBR',name:'Storbritannien'},{code:'GRC',name:'Grækenland'},{code:'HUN',name:'Ungarn'},
-    {code:'IRL',name:'Irland'},{code:'ISR',name:'Israel'},{code:'ITA',name:'Italien'},
-    {code:'JPN',name:'Japan'},{code:'KOR',name:'Sydkorea'},{code:'LVA',name:'Letland'},
-    {code:'LTU',name:'Litauen'},{code:'LUX',name:'Luxembourg'},{code:'MEX',name:'Mexico'},
-    {code:'NLD',name:'Nederlandene'},{code:'NOR',name:'Norge'},{code:'NZL',name:'New Zealand'},
-    {code:'POL',name:'Polen'},{code:'PRT',name:'Portugal'},{code:'SVK',name:'Slovakiet'},
-    {code:'SVN',name:'Slovenien'},{code:'ESP',name:'Spanien'},{code:'SWE',name:'Sverige'},
-    {code:'CHE',name:'Schweiz'},{code:'TUR',name:'Tyrkiet'},{code:'USA',name:'USA'},
-    {code:'COL',name:'Colombia'}
-  ];
+    // --- Indikatorer med både standard & harmoniserede koder ---
+    const indicators = [
+      { codes:['GDPV_ANNPCT'],                name:'Økonomisk vækst' },
+      { codes:['CPI_YTYPCT','CPIH_YTYPCT'],    name:'Samlet inflation' },
+      { codes:['PCORE_YTYPCT','PCOREH_YTYPCT'],name:'Kerneinflation' },
+      { codes:['UNR'],                        name:'Arbejdsløshedsprocenten' },
+      { codes:['XGSV_ANNPCT'],                name:'Eksport' },
+      { codes:['MGSV_ANNPCT'],                name:'Import' },
+      { codes:['CBGDPR'],                     name:'Betalingsbalancen i % af BNP' },
+      { codes:['NLGXQ'],                      name:'Offentligt underskud i % af BNP' },
+      { codes:['GGFLMQ'],                     name:'Offentlig gæld i % af BNP' },
+      { codes:['IRL'],                        name:'Den lange obligationsrente' },
+      { codes:['CPV_ANNPCT'],                 name:'Privat forbrug' },
+      { codes:['CGV_ANNPCT'],                 name:'Offentligt forbrug' },
+      { codes:['ITV_ANNPCT'],                 name:'Offentlige investeringer' },
+      { codes:['PDTY'],                       name:'Produktivitet (volumenindeks)' },
+      { codes:['CPIDR'],                      name:'Priskonkurrence, indeks 2021' },
+      { codes:['ULCDR'],                      name:'Lønomkostninger, indeks 2021' }
+    ];
 
-  // Eurolande
-  const euroCountries = [
-    'AUT','BEL','EST','FIN','FRA','DEU','GRC','IRL',
-    'ITA','LVA','LTU','LUX','NLD','PRT','SVK','SVN','ESP'
-  ];
+    let latest1, latest2, years = [];
+    let graphMap, graphYears, graphChart;
 
-  // Indikatorer
-  const indicators = [
-    { codes:['GDPV_ANNPCT'],               name:'Økonomisk vækst' },
-    { codes:['CPI_YTYPCT','CPIH_YTYPCT'],   name:'Samlet inflation' },
-    { codes:['PCORE_YTYPCT','PCOREH_YTYPCT'],name:'Kerneinflation' },
-    { codes:['UNR'],                        name:'Arbejdsløshedsprocenten' },
-    { codes:['XGSV_ANNPCT'],                name:'Eksport' },
-    { codes:['MGSV_ANNPCT'],                name:'Import' },
-    { codes:['CBGDPR'],                     name:'Betalingsbalancen i % af BNP' },
-    { codes:['NLGXQ'],                      name:'Offentligt underskud i % af BNP' },
-    { codes:['GGFLMQ'],                     name:'Offentlig gæld i % af BNP' },
-    { codes:['IRL'],                        name:'Den lange obligationsrente' },
-    { codes:['CPV_ANNPCT'],                 name:'Privat forbrug' },
-    { codes:['CGV_ANNPCT'],                 name:'Offentligt forbrug' },
-    { codes:['ITV_ANNPCT'],                 name:'Offentlige investeringer' },
-    { codes:['PDTY'],                       name:'Produktivitet (volumenindeks)' },
-    { codes:['CPIDR'],                      name:'Priskonkurrence, indeks 2021' },
-    { codes:['ULCDR'],                      name:'Lønomkostninger, indeks 2021' }
-  ];
-
-  // State
-  let latest1, years = [], graphMap, graphYears, graphChart, generateIndex = 0;
-
-  // Udfyld dropdown med lande
-  function populateCountries(){
-    const sel = $('country1');
-    countries.forEach(c => sel.add(new Option(c.name, c.code)));
-  }
-
-  // Hent rå SDMX JSON via proxy
-  async function fetchRaw(code){
-    const allCodes = indicators.flatMap(i => i.codes).join('+');
-    const url = apiBase + flow + `${code}.${allCodes}.A` + params;
-    const resp = await fetch(proxyUrl + encodeURIComponent(url), {
-      headers: { 'Accept': 'application/vnd.sdmx.data+json;version=1.0' }
-    });
-    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return resp.json();
-  }
-
-  // Parse SDMX JSON til { years, map }
-  function parseData(json){
-    const s  = json.structure || json.data.structure;
-    const sd = s.dimensions.series;
-    const od = s.dimensions.observation[0].values.map(v => v.id);
-
-    if(!years.length) years = od.slice().sort((a,b)=> +a - +b);
-
-    // Lav rawMap[c][year] = null initialt
-    const rawMap = {};
-    indicators.flatMap(i => i.codes).forEach(c => {
-      rawMap[c] = {};
-      years.forEach(y => rawMap[c][y] = null);
-    });
-
-    const series = (json.dataSets || json.data.dataSets)[0].series;
-    const idx = sd.findIndex(d => d.values.length > 1);
-
-    Object.entries(series).forEach(([key, serie]) => {
-      const parts = key.split(':').map(x => +x);
-      const code  = sd[idx].values[parts[idx]].id;
-      Object.entries(serie.observations || {}).forEach(([t, val]) => {
-        rawMap[code][od[+t]] = val[0];
+    function populateCountryDropdowns() {
+      const c1 = document.getElementById('country1');
+      const c2 = document.getElementById('country2');
+      countries.forEach(({code,name})=>{
+        c1.append(new Option(name,code));
+        c2.append(new Option(name,code));
       });
-    });
+    }
 
-    // Collapse til dataMap[ind.codes[0]][year]
-    const dataMap = {};
-    indicators.forEach(ind => {
-      const mainKey = ind.codes[0];
-      dataMap[mainKey] = {};
-      years.forEach(y => {
-        let v = null;
-        for(const c of ind.codes){
-          if(rawMap[c][y] != null){
-            v = rawMap[c][y];
-            break;
+    async function fetchRaw(country) {
+      const codes   = indicators.flatMap(ind=>ind.codes).join('+');
+      const url     = apiBase + flow + `${country}.${codes}.A` + params;
+      const proxied = proxyUrl + encodeURIComponent(url);
+      const resp    = await fetch(proxied, {
+        headers:{ 'Accept':'application/vnd.sdmx.data+json;version=1.0' }
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      return resp.json();
+    }
+
+    function parseData(json) {
+      const struct = json.structure || (json.data && json.data.structure);
+      const sdims  = struct.dimensions.series;
+      const odoms  = struct.dimensions.observation[0].values.map(v=>v.id);
+      if (!years.length) years = odoms.slice().sort((a,b)=>+a-+b);
+
+      const rawMap = {};
+      indicators.flatMap(ind=>ind.codes).forEach(c=>{
+        rawMap[c] = {};
+        years.forEach(y=> rawMap[c][y] = null);
+      });
+
+      const series = (json.dataSets||json.data.dataSets)[0].series;
+      const idx    = sdims.findIndex(d=>d.values.length>1);
+      Object.entries(series).forEach(([key,serie])=>{
+        const pos  = key.split(':').map(n=>+n)[idx];
+        const code = sdims[idx].values[pos].id;
+        Object.entries(serie.observations||{}).forEach(([tix,val])=>{
+          const y = odoms[+tix];
+          rawMap[code][y] = val[0];
+        });
+      });
+
+      const dataMap = {};
+      indicators.forEach(ind=>{
+        dataMap[ind.codes[0]] = {};
+        years.forEach(y=>{
+          let v = null;
+          for(const c of ind.codes){
+            if (rawMap[c][y] != null) { v = rawMap[c][y]; break; }
           }
-        }
-        dataMap[mainKey][y] = v;
+          dataMap[ind.codes[0]][y] = v;
+        });
       });
-    });
 
-    return { years, map: dataMap };
-  }
+      return { years, dataMap };
+    }
 
-  // Byg HTML-tabel fra parsed
-  function buildTable(parsed){
-    const tbl = document.createElement('table');
-    const headRow = tbl.createTHead().insertRow();
-    headRow.insertCell().textContent = 'Nøgletal \\ År';
-    years.forEach(y => headRow.insertCell().textContent = y);
-
-    const body = tbl.createTBody();
-    indicators.forEach(ind => {
-      const r = body.insertRow();
-      r.insertCell().textContent = ind.name;
-      const key = ind.codes[0];
-      years.forEach(y => {
-        const v = parsed.map[key][y];
-        r.insertCell().textContent = v != null ? v.toFixed(2).replace('.',',') : '–';
+    function buildTable(p) {
+      const tbl = document.createElement('table');
+      const head = tbl.createTHead().insertRow();
+      head.insertCell().textContent = 'Nøgletal \\ År';
+      years.forEach(y=> head.insertCell().textContent = y);
+      const body = tbl.createTBody();
+      indicators.forEach(ind=>{
+        const r = body.insertRow();
+        r.insertCell().textContent = ind.name;
+        const key = ind.codes[0];
+        years.forEach(y=>{
+          const v = p.dataMap[key][y];
+          r.insertCell().textContent = v!=null? v.toFixed(2): '–';
+        });
       });
-    });
+      return tbl;
+    }
 
-    return tbl;
-  }
-
-  // Détekter rolle ud fra regler
-  function detectRole(data, code){
-    const u   = data['UNR'][endYear];
-    const d   = data['GGFLMQ'][endYear];
-    const euro = euroCountries.includes(code);
-
-    if(u < 4)   return 'beskæftigelsesministeren';
-    if(d > 60)  return 'finansministeren';
-    if(!euro)   return 'Nationalbankdirektøren';
-    return 'finansministeren';
-  }
-
-  // Lav liste af kortproblemer (P1/P2)
-  function problems(data){
-    const p = [];
-    // 1) Offentlig gæld
-    const debt = data['GGFLMQ'][endYear];
-    if(debt > 100)       p.push('rigtig høj offentlig gæld (>100% af BNP)');
-    else if(debt > 60)   p.push('offentlig gæld > 60% af BNP');
-    // 2) Samlet inflation
-    if(data['CPI_YTYPCT'][endYear] > 4)     p.push('høj samlet inflation');
-    // 3) Betalingsbalance
-    if(data['CBGDPR'][endYear] > 6)         p.push('stort betalingsbalanceoverskud (>6%)');
-    // 4) Fuld beskæftigelse
-    const u = data['UNR'][endYear];
-    if(u >= 3 && u <= 4)                  p.push('fuld beskæftigelse');
-    // 5) Overophedning
-    const g = data['GDPV_ANNPCT'][endYear];
-    if(g > 2)                             p.push('højkonjunktur/overophedning');
-    // 6) Lavkonjunktur
-    if(g < 1)                             p.push('lavkonjunktur');
-    // 7) Tre år i træk (økonomisk krise / mulig overophedning)
-    const last3 = years.slice(-3);
-    if(last3.every(y => data['GDPV_ANNPCT'][y] < 1)) p.push('økonomisk krise (3 år <1%)');
-    if(last3.every(y => data['GDPV_ANNPCT'][y] > 2)) p.push('mulig overophedning (3 år >2%)');
-    return p;
-  }
-
-  // BYG OPGAVETEKST (P0 fjernet – bruger kun P1):
-  //   - Vi nøjes med P1 (hovedproblemet) i selve opgave-skabelonen.
-  function buildP0(data){
-    // P0 fjernes helt, fordi vi ikke skal vise alle procent-regler i selve notatet.
-    // Den kommer ikke længere i output – derfor tom funktion:
-    return '';
-  }
-
-  // DOWNLOAD EXCEL (komma som decimalseparator)
-  function downloadExcel(){
-    if(!latest1) return;
-    const aoa = [['Nøgletal \\ År', ...years]];
-    indicators.forEach(ind => {
-      const row = [ind.name];
-      years.forEach(y => {
-        const v = latest1.map[ind.codes[0]][y];
-        row.push(v != null ? v.toFixed(2).replace('.',',') : null);
+    function buildComparison(p1,p2,c1,c2) {
+      const tbl = document.createElement('table');
+      const ths = tbl.createTHead();
+      const r1 = ths.insertRow();
+      r1.insertCell().rowSpan = 2;
+      r1.cells[0].textContent = 'Nøgletal \\ År';
+      years.forEach(y=>{
+        const c = r1.insertCell(); c.colSpan = 2; c.textContent = y;
       });
-      aoa.push(row);
-    });
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    XLSX.utils.book_append_sheet(wb, ws, 'Data');
-    XLSX.writeFile(wb, `OECD_${$('country1').value}.xlsx`);
-  }
+      const r2 = ths.insertRow();
+      years.forEach(_=>{
+        r2.insertCell().textContent = c1;
+        r2.insertCell().textContent = c2;
+      });
+      const body = tbl.createTBody();
+      indicators.forEach(ind=>{
+        const r = body.insertRow();
+        r.insertCell().textContent = ind.name;
+        const key = ind.codes[0];
+        years.forEach(y=>{
+          const v1 = p1.dataMap[key][y];
+          r.insertCell().textContent = v1!=null? v1.toFixed(2): '–';
+          const v2 = p2.dataMap[key][y];
+          r.insertCell().textContent = v2!=null? v2.toFixed(2): '–';
+        });
+      });
+      return tbl;
+    }
 
-  // GRAF-FUNKTION (uændret)
-  function populateGraphControls(){
-    const f   = $('filterInput'),
-          iS  = $('indicatorSelect'),
-          yS  = $('yearSelect'),
-          l5  = $('last5Btn'),
-          l10 = $('last10Btn'),
-          pB  = $('plotBtn');
+    function downloadExcel() {
+      if (!latest1) return;
+      const aoa = [['Nøgletal \\ År', ...years]];
+      indicators.forEach(ind=>{
+        const row = [ind.name];
+        const key = ind.codes[0];
+        years.forEach(y=>{
+          const v = latest1.dataMap[key][y];
+          row.push(v!=null? +v.toFixed(2): null);
+        });
+        aoa.push(row);
+      });
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      XLSX.utils.book_append_sheet(wb, ws, 'Data');
+      XLSX.writeFile(wb, `OECD_${document.getElementById('country1').value}.xlsx`);
+    }
 
-    // Indikatorer
-    iS.innerHTML = '';
-    indicators.forEach(ind => iS.append(new Option(ind.name, ind.codes[0])));
+    function populateGraphControls(){
+      const f   = document.getElementById('filterInput');
+      const iS  = document.getElementById('indicatorSelect');
+      const yS  = document.getElementById('yearSelect');
+      const l5  = document.getElementById('last5Btn');
+      const l10 = document.getElementById('last10Btn');
+      const pB  = document.getElementById('plotBtn');
 
-    // År
-    yS.innerHTML = '';
-    yS.append(new Option('Alle år','all', true, true));
-    graphYears.forEach(y => yS.append(new Option(y,y)));
+      iS.innerHTML = '';
+      indicators.forEach(ind=> iS.append(new Option(ind.name, ind.codes[0])));
 
-    [f,iS,yS,l5,l10,pB].forEach(el => el.disabled = false);
-    f.value = '';
+      yS.innerHTML = '';
+      yS.append(new Option('Alle år','all', true, true));
+      graphYears.forEach(y=> yS.append(new Option(y,y)));
 
-    f.oninput = () => {
-      const term = f.value.toLowerCase();
-      Array.from(iS.options).forEach(o =>
-        o.style.display = o.text.toLowerCase().includes(term) ? '' : 'none'
-      );
-    };
+      [f,iS,yS,l5,l10,pB].forEach(el=>el.disabled=false);
+      f.value='';
 
-    l5.onclick = () => {
-      const opts = Array.from(yS.options),
-            last = graphYears.slice(-5).map(String);
-      opts.forEach(o => o.selected = (o.value !== 'all' && last.includes(o.value)));
-    };
-
-    l10.onclick = () => {
-      const opts = Array.from(yS.options),
-            last = graphYears.slice(-10).map(String);
-      opts.forEach(o => o.selected = (o.value !== 'all' && last.includes(o.value)));
-    };
-
-    pB.onclick = () => {
-      const selCodes = Array.from(iS.options)
-        .filter(o => o.selected && o.style.display !== 'none')
-        .map(o => o.value);
-      if(!selCodes.length) return alert('Vælg mindst én indikator');
-      const selYs = Array.from(yS.options).filter(o => o.selected).map(o => o.value);
-      const useAll = selYs.includes('all') || selYs.length === 0;
-      const labels = useAll ? graphYears : selYs;
-      const datasets = selCodes.map((code,i) => ({
-        label: indicators.find(ind => ind.codes[0] === code).name,
-        data: labels.map(y => + (graphMap[code][y] || 0)),
-        borderColor: `hsl(${i*360/selCodes.length},70%,45%)`,
-        fill: false,
-        spanGaps: true
-      }));
-      if(graphChart) graphChart.destroy();
-      graphChart = new Chart($('chart'), {
-        type: 'line',
-        data: { labels, datasets },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { position:'bottom' } },
-          scales: {
-            x: { title: { display:true, text:'År' } },
-            y: { title: { display:true, text:'Værdi' } }
+      f.oninput = ()=> {
+        const term = f.value.toLowerCase();
+        Array.from(iS.options).forEach(o=>
+          o.style.display = o.text.toLowerCase().includes(term)? '' : 'none'
+        );
+      };
+      l5.onclick = ()=> {
+        const opts = Array.from(yS.options);
+        const last = graphYears.slice(-5).map(String);
+        opts.forEach(o=> o.selected = o.value!=='all' && last.includes(o.value));
+      };
+      l10.onclick = ()=> {
+        const opts = Array.from(yS.options);
+        const last = graphYears.slice(-10).map(String);
+        opts.forEach(o=> o.selected = o.value!=='all' && last.includes(o.value));
+      };
+      pB.onclick = ()=> {
+        const selCodes = Array.from(iS.options)
+                          .filter(o=>o.selected && o.style.display!=='none')
+                          .map(o=>o.value);
+        if (!selCodes.length) return alert('Vælg mindst én indikator');
+        const selYs = Array.from(yS.options).filter(o=>o.selected).map(o=>o.value);
+        const useAll= selYs.includes('all') || selYs.length===0;
+        const labels= useAll? graphYears : selYs;
+        const datasets = selCodes.map((code,i)=>({
+          label: indicators.find(ind=>ind.codes[0]===code).name,
+          data: labels.map(y=> +(graphMap[code][y]||0)),
+          borderColor:`hsl(${i*360/selCodes.length},70%,45%)`,
+          fill:false, spanGaps:true
+        }));
+        if (graphChart) graphChart.destroy();
+        graphChart = new Chart(
+          document.getElementById('chart'),
+          {
+            type:'line',
+            data:{labels,datasets},
+            options:{
+              responsive:true, maintainAspectRatio:false,
+              plugins:{ legend:{ position:'bottom' }},
+              scales:{
+                x:{ title:{ display:true,text:'År' }},
+                y:{ title:{ display:true,text:'Værdi' }}
+              }
+            }
           }
+        );
+      };
+    }
+
+    document.addEventListener('DOMContentLoaded',()=>{
+      populateCountryDropdowns();
+
+      // indsæt API-citation med nyeste dato
+      document.getElementById('apiCitation').textContent =
+        `Source: OECD. Data extracted from the OECD SDMX API (https://sdmx.oecd.org). © OECD. All rights reserved. Use subject to OECD Terms and Conditions. Nyeste data: ${endPeriod}.`;
+
+      document.getElementById('btnFetch').onclick = async ()=>{
+        const c1 = document.getElementById('country1').value;
+        const c2 = document.getElementById('country2').value;
+        if (!c1) return alert('Vælg mindst ét land');
+        const container = document.getElementById('tableContainer');
+        container.textContent = 'Henter data…';
+        try {
+          const j1 = await fetchRaw(c1);
+          latest1   = parseData(j1);
+          graphMap  = latest1.dataMap;
+          graphYears= latest1.years;
+          container.textContent='';
+
+          if (!c2) {
+            container.append(buildTable(latest1));
+          } else {
+            if (c1===c2) return alert('Vælg to forskellige lande');
+            const j2 = await fetchRaw(c2);
+            latest2 = parseData(j2);
+            container.append(buildComparison(latest1, latest2, c1, c2));
+          }
+          document.getElementById('btnExcel').disabled = false;
+        } catch(err) {
+          console.error(err);
+          container.textContent='Fejl ved hentning/parsing – se console.';
         }
-      });
-    };
-  }
+      };
 
-  // INIT & EVENT-HANDLERS
-  document.addEventListener('DOMContentLoaded', () => {
-    populateCountries();
-    $('apiCitation').textContent =
-      `Source: OECD SDMX API (https://sdmx.oecd.org). © OECD. Nyeste år: ${endYear}.`;
-
-    $('infoBtn').onclick = () => alert(
-`Struktur til eleverne:
-• En konkret problemstilling
-• To eller flere løsningsforslag – finanspolitik vs. penge-/valutapolitik
-• Faglig argumentation (kort/langt sigt)
-• Sammenstilling af forslag med fordele/ulemper
-• Konklusion med anbefalinger`
-    );
-
-    $('btnFetch').onclick = async () => {
-      const code = $('country1').value;
-      if(!code) return alert('Vælg et land');
-      $('tableContainer').textContent = 'Henter data…';
-      try {
-        const raw = await fetchRaw(code);
-        const parsed = parseData(raw);
-        latest1 = parsed;
-        graphMap = parsed.map;
-        graphYears = parsed.years;
-        generateIndex = 0;
-        $('tableContainer').textContent = '';
-        $('tableContainer').append(buildTable(parsed));
-        $('btnExcel').disabled = false;
-      } catch(err) {
-        console.error(err);
-        $('tableContainer').textContent = 'Fejl ved hentning/parsing.';
-      }
-    };
-
-    $('btnGenerate').onclick = () => {
-      if(!latest1) return alert('Hent data først');
-      const code = $('country1').value;
-      const name = countries.find(c => c.code === code).name;
-      // Tag kun P1 som hovedproblem
-      const pr = problems(latest1.map);
-      if(!pr.length) return alert('Ingen ubalancer fundet.');
-      const i1 = generateIndex % pr.length;
-      const p1 = pr[i1];
-      generateIndex++;
-
-      // Lav opgaveteksten i den ønskede skabelon
-      $('assignmentContainer').textContent =
-`Som rådgiver for den ${name}ske regering skal du skrive et notat på maksimalt 600 ord.
-
-Notatet skal indeholde en præsentation af egnede tiltag med det formål at løse ${p1} i ${endYear} og frem. ${name} har nogle ubalancer økonomisk set i forhold til deres ${p1}, så hvordan vil du løse problemet?
-
-Konkurrenceevnen
-Levestandarden
-
-Bedømmelsen foretages på baggrund af en helhedsvurdering. Der er fokus på din evne til at have den rigtige struktur i notatet, men også at du viser, at du kan forholde dig til enten finanspolitikken (to instrumenter med en direkte/indirekte effekt), pengepolitik (evt. forhold som begrænser denne samt instrumenter og obs punkter) eller valutapolitikken (evt. forhold som begrænser denne samt instrumenter og obs punkter).`;
-    };
-
-    $('btnExcel').onclick = downloadExcel;
-
-    $('btnGraphs').onclick = () => {
-      if(!latest1) return alert('Hent data først');
-      $('graphSection').style.display = 'block';
-      populateGraphControls();
-      $('graphSection').scrollIntoView({ behavior: 'smooth' });
-    };
-  });
-</script>
+      document.getElementById('btnExcel').onclick  = downloadExcel;
+      document.getElementById('btnGraphs').onclick = ()=>{
+        if (!latest1) return alert('Hent data først');
+        document.getElementById('graphSection').style.display='block';
+        populateGraphControls();
+        document.getElementById('graphSection').scrollIntoView({behavior:'smooth'});
+      };
+    });
+  </script>
 
 </body>
 </html>
