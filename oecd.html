@@ -94,7 +94,7 @@
     {code:'COL', name:'Colombia'}
   ];
 
-  // EU-lande med euro (kan ikke vælge Nationalbank-rolle)
+  // EU-lande med euro
   const euroCountries = [
     'AUT','BEL','EST','FIN','FRA','DEU','GRC','IRL',
     'ITA','LVA','LTU','LUX','NLD','PRT','SVK','SVN','ESP'
@@ -129,7 +129,7 @@
       graphChart = null,
       lastCountry1 = null,      // Sidste valgte kode (f.eks. 'DNK')
       lastCountry2 = null,      // Sidste valgte kode for Land 2
-      generateIndex = 0;        // Indeks til roterende P1
+      generateIndex = 0;        // Indeks til roterende P0
 
   // --- FYLD DROPDOWN MED FULDE LANDENAVNE ---
   function populateCountries() {
@@ -225,7 +225,7 @@
       th.textContent = y;
     });
 
-    // Anden header-række: kun koderne (DNK / DEU / DK osv.)
+    // Anden header-række: kun koderne (DNK / DEU osv.)
     const row2 = thead.insertRow();
     row2.insertCell(); // tom celle under "Nøgletal \ År"
     years.forEach(_ => {
@@ -264,7 +264,7 @@
                       return 'finansministeren';
   }
 
-  // --- LISTE AF PROBLEMER (Land 1) ---
+  // --- LISTE AF HOVEDPROBLEM (p0) (Land 1) ---
   function problems(dataMap) {
     const p = [];
     const debt = dataMap['GGFLMQ'][endYear];
@@ -293,11 +293,66 @@
     return p;
   }
 
-  // --- BESKRIV PROBLEM (Land 1) – DE 11 EKSEMPLER, NU MED FULDT NAVN ---
-  function describeProblem(p1, dataMap, code) {
-    // Brug fuldt landenavn i stedet for koden
-    const land = countries.find(c => c.code === code).name;
+  // --- LISTE AF OVERVEJELSER (p1/p2) (Land 1) ---
+  function considerations(dataMap, code) {
+    const lines = new Set();
+    const u  = dataMap['UNR'][endYear];
+    const d  = dataMap['GGFLMQ'][endYear];
+    const ci = dataMap['CPI_YTYPCT'][endYear];
+    const co = dataMap['PCORE_YTYPCT'][endYear];
+    const b  = dataMap['CBGDPR'][endYear];
+    const last3 = years.slice(-3);
 
+    // 1) Arbejdsløshed 2–4 % → mismatch/flaskehalse
+    if (u >= 2 && u < 4) {
+      lines.add('Mismatch på arbejdsmarkedet/flaskehalse');
+    }
+
+    // 2) Offentlig gæld > 60 %
+    if (d > 60) {
+      const euro = euroCountries.includes(code);
+      if (euro) {
+        lines.add('Begrænsninger ved brug af økonomisk politik som EU-land');
+      } else {
+        lines.add('En rimelig social fordeling af goderne');
+        lines.add('Balance mellem statens indtægter og udgifter');
+      }
+    }
+
+    // 3) Betalingsbalanceoverskud > 1 % → konkurrenceevnen
+    if (b > 1) {
+      lines.add('Konkurrenceevnen');
+    }
+
+    // 4) Vækst > 2 % tre år i træk
+    if (last3.every(y => dataMap['GDPV_ANNPCT'][y] != null && dataMap['GDPV_ANNPCT'][y] > 2)) {
+      lines.add('Balance mellem statens indtægter og udgifter');
+      lines.add('En rimelig social fordeling af goderne');
+    }
+
+    // 5) Vækst < 1 % tre år i træk
+    if (last3.every(y => dataMap['GDPV_ANNPCT'][y] != null && dataMap['GDPV_ANNPCT'][y] < 1)) {
+      lines.add('Mulige målkonflikter mellem samfundsøkonomiske mål');
+    }
+
+    // 6) Høj samlet inflation > 4 % → konkurrenceevnen
+    if (ci > 4) {
+      lines.add('Konkurrenceevnen');
+    }
+    // 7) Hvis vi kommer hertil, og ikke allerede har ’Konkurrenceevnen’, så tjek CPI<PCORE
+    else if (ci != null && co != null && ci < co) {
+      // Tilføj tre nye scenarier for "samlet inflation < kerneinflation"
+      lines.add('Konkurrenceevnen');
+      lines.add('Betalingsbalancen');
+      lines.add('løn-pris-spiral');
+    }
+
+    return Array.from(lines);
+  }
+
+  // --- BESKRIV PROBLEM (Land 1) – DE 11 EKSEMPLER, NU MED FULDT NAVN ---
+  function describeProblem(p0, dataMap, code) {
+    const landName = countries.find(c => c.code === code).name;
     const d    = dataMap['GGFLMQ'][endYear];      // Offentlig gæld
     const ci   = dataMap['CPI_YTYPCT'][endYear];   // Samlet inflation
     const co   = dataMap['PCORE_YTYPCT'][endYear]; // Kerneinflation
@@ -308,64 +363,64 @@
     let s = '';
 
     // 1) Rigtig høj offentlig gæld (> 100 % af BNP)
-    if (p1.includes('rigtig høj offentlig gæld')) {
-      s = `${land} har en meget høj offentlig gæld på ${d.toFixed(2)} % af BNP, hvilket skaber ubalancer i landets økonomi samt medfører faldende tillid og udfordringer ift. EU og konjunkturer.`;
+    if (p0.includes('rigtig høj offentlig gæld')) {
+      s = `${landName} har en meget høj offentlig gæld på ${d.toFixed(2)} % af BNP, hvilket skaber ubalancer i landets økonomi samt medfører faldende tillid og udfordringer ift. EU og konjunkturer.`;
     }
     // 2) Offentlig gæld > 60 % + samlet inflation > kerneinflation
-    else if (p1.includes('offentlig gæld') && p1.includes('inflation')) {
-      s = `${land} har en offentlig gæld på ${d.toFixed(2)} % af BNP og en samlet inflation på ${ci.toFixed(2)} % (kerneinflation: ${co.toFixed(2)} %). Kombinationen af høj gæld og inflation presser både statens indtægter/udgifter og husholdningerne.`;
+    else if (p0.includes('offentlig gæld') && p0.includes('høj samlet inflation')) {
+      s = `${landName} har en offentlig gæld på ${d.toFixed(2)} % af BNP og en samlet inflation på ${ci.toFixed(2)} % (kerneinflation: ${co.toFixed(2)} %). Kombinationen af høj gæld og inflation presser både statens indtægter/udgifter og husholdningerne.`;
     }
     // 3) Offentlig gæld > 60 % uden inflation
-    else if (p1.includes('offentlig gæld > 60 % af BNP') && !p1.includes('inflation')) {
-      s = `${land} har en offentlig gæld på ${d.toFixed(02)} % af BNP i 2024, hvilket presser statens indtægter og udgifter samt svækker mulighederne for at føre finanspolitik. Det påvirker også tillid og EU’s krav.`;
+    else if (p0.includes('offentlig gæld > 60 % af BNP') && !p0.includes('høj samlet inflation')) {
+      s = `${landName} har en offentlig gæld på ${d.toFixed(2)} % af BNP i 2024, hvilket presser statens indtægter og udgifter samt svækker mulighederne for at føre finanspolitik. Det påvirker også tillid og EU’s krav.`;
     }
     // 4) Høj samlet inflation + stort betalingsbalanceoverskud (> 6 %)
-    else if (p1.includes('høj samlet inflation') && p1.includes('stort betalingsbalanceoverskud')) {
-      s = `Den samlede inflation i ${land} er ${ci.toFixed(2)} % i 2024, mens betalingsbalancen ligger på ${b.toFixed(2)} % af BNP (stort overskud). Det høje inflationsniveau kan underminere konkurrenceevnen, selvom overskuddet på betalingsbalancen er stort. Et stort betalingsbalanceoverskud er et problem i forhold til andre samhandelslande.`;
+    else if (p0.includes('høj samlet inflation') && p0.includes('stort betalingsbalanceoverskud')) {
+      s = `Den samlede inflation i ${landName} er ${ci.toFixed(2)} % i 2024, mens betalingsbalancen ligger på ${b.toFixed(2)} % af BNP (stort overskud). Det høje inflationsniveau kan underminere konkurrenceevnen, selvom overskuddet på betalingsbalancen er stort. Et stort betalingsbalanceoverskud er et problem i forhold til andre samhandelslande.`;
     }
     // 5) Høj samlet inflation uden betalingsbalancekonsekvens
-    else if (p1.includes('høj samlet inflation') && !p1.includes('stort betalingsbalanceoverskud')) {
-      s = `Den samlede inflation i ${land} er ${ci.toFixed(2)} % i 2024, hvilket overstiger kerneinflationen (${co.toFixed(2)} %) og indikerer prisstigninger fra udlandet. Det presser forbrugernes købekraft og konkurrenceevne.`;
+    else if (p0.includes('høj samlet inflation') && !p0.includes('stort betalingsbalanceoverskud')) {
+      s = `Den samlede inflation i ${landName} er ${ci.toFixed(2)} % i 2024, hvilket overstiger kerneinflationen (${co.toFixed(2)} %) og indikerer prisstigninger fra udlandet. Det presser forbrugernes købekraft og konkurrenceevne.`;
     }
     // 6) Stort betalingsbalanceoverskud (> 6 % af BNP)
-    else if (p1.includes('stort betalingsbalanceoverskud')) {
-      s = `Betalingsbalancen i ${land} er ${b.toFixed(2)} % af BNP i 2024 (stort overskud). Et kraftigt overskud kan udfordre landets konkurrenceevne og samhandel med andre lande.`;
+    else if (p0.includes('stort betalingsbalanceoverskud')) {
+      s = `Betalingsbalancen i ${landName} er ${b.toFixed(2)} % af BNP i 2024 (stort overskud). Et kraftigt overskud kan udfordre landets konkurrenceevne og samhandel med andre lande.`;
     }
     // 7) Fuld beskæftigelse (arbejdsløshed 3–4 %)
-    else if (p1.includes('fuld beskæftigelse')) {
-      s = `Arbejdsløsheden i ${land} er på blot ${u.toFixed(2)} % (fuld beskæftigelse), hvilket kan skabe flaskehalsproblemer og mismatchproblemer i økonomien.`;
+    else if (p0.includes('fuld beskæftigelse')) {
+      s = `Arbejdsløsheden i ${landName} er på blot ${u.toFixed(2)} % (fuld beskæftigelse), hvilket kan skabe flaskehalsproblemer og mismatchproblemer i økonomien.`;
     }
     // 8) Højkonjunktur/overophedning (vækst > 2 %)
-    else if (p1.includes('højkonjunktur/overophedning')) {
-      s = `Økonomien i ${land} vokser med ${g.toFixed(2)} % i 2024, hvilket peger på overophedning. Derfor kan der være behov for at lægge en dæmper på den økonomiske udvikling.`;
+    else if (p0.includes('højkonjunktur/overophedning')) {
+      s = `Økonomien i ${landName} vokser med ${g.toFixed(2)} % i 2024, hvilket peger på overophedning. Derfor kan der være behov for at lægge en dæmper på den økonomiske udvikling.`;
     }
     // 9) Lavkonjunktur (vækst < 1 %)
-    else if (p1.includes('lavkonjunktur')) {
-      s = `Økonomien i ${land} vokser kun med ${g.toFixed(2)} % i 2024, hvilket indikerer lavkonjunktur som på sigt kan udvikle sig til en krise. Derfor er der behov for at sætte lidt/mere gang i landets økonomi.`;
+    else if (p0.includes('lavkonjunktur')) {
+      s = `Økonomien i ${landName} vokser kun med ${g.toFixed(2)} % i 2024, hvilket indikerer lavkonjunktur som på sigt kan udvikle sig til en krise. Derfor er der behov for at sætte lidt/mere gang i landets økonomi.`;
     }
     // 10) Økonomisk krise (3 år i træk < 1 %)
-    else if (p1.includes('økonomisk krise')) {
+    else if (p0.includes('økonomisk krise')) {
       const y1 = years[years.length - 3],
             y2 = years[years.length - 2],
             y3 = years[years.length - 1];
       const g1 = dataMap['GDPV_ANNPCT'][y1].toFixed(2);
       const g2 = dataMap['GDPV_ANNPCT'][y2].toFixed(2);
       const g3 = dataMap['GDPV_ANNPCT'][y3].toFixed(2);
-      s = `${land} har oplevet vækstrater på under 1 % i tre år i træk (${y1}: ${g1} %, ${y2}: ${g2} %, ${y3}: ${g3} %), derfor er der behov for at kickstarte landets økonomi.`;
+      s = `${landName} har oplevet vækstrater på under 1 % i tre år i træk (${y1}: ${g1} %, ${y2}: ${g2} %, ${y3}: ${g3} %), derfor er der behov for at kickstarte landets økonomi.`;
     }
     // 11) Mulig overophedning (3 år i træk > 2 %)
-    else if (p1.includes('mulig overophedning')) {
+    else if (p0.includes('mulig overophedning')) {
       const y1 = years[years.length - 3],
             y2 = years[years.length - 2],
             y3 = years[years.length - 1];
       const g1 = dataMap['GDPV_ANNPCT'][y1].toFixed(2);
       const g2 = dataMap['GDPV_ANNPCT'][y2].toFixed(2);
       const g3 = dataMap['GDPV_ANNPCT'][y3].toFixed(2);
-      s = `${land} har haft vækst over 2 % i tre år i træk (${y1}: ${g1} %, ${y2}: ${g2} %, ${y3}: ${g3} %), hvorfor der kan være behov for at lægge en dæmper på den økonomiske udvikling.`;
+      s = `${landName} har haft vækst over 2 % i tre år i træk (${y1}: ${g1} %, ${y2}: ${g2} %, ${y3}: ${g3} %), hvorfor der kan være behov for at lægge en dæmper på den økonomiske udvikling.`;
     }
-    // Fallback
+    // Fallback (kun hvis p0 er tom – men normalt kommer p0 altid med ét af ovenstående)
     else {
-      s = `${land} står med udfordringer i økonomien i forhold til: ${p1}.`;
+      s = `${landName} står med udfordringer i økonomien i forhold til: ${p0}.`;
     }
 
     return s;
@@ -546,30 +601,41 @@
       }
     };
 
-    // “Generer opgave” (Land 1) – bruger nu fulde landetavnet i teksten
+    // “Generer opgave” (Land 1) – nu med dynamiske punkt 1 og 2
     $('btnGenerate').onclick = () => {
       if (!data1) return alert('Hent data for Land 1 først');
       const code = lastCountry1;
       const fullName = countries.find(c => c.code === code).name;
-      const pr   = problems(data1.dataMap);
-      if (!pr.length) return alert('Ingen ubalancer fundet for Land 1.');
-      const idx = generateIndex % pr.length;
-      const p1  = pr[idx];
+
+      // Hovedproblem p0
+      const prList = problems(data1.dataMap);
+      if (!prList.length) return alert('Ingen ubalancer fundet for Land 1.');
+      const idx = generateIndex % prList.length;
+      const p0  = prList[idx];
       generateIndex++;
 
-      const overordnet = describeProblem(p1, data1.dataMap, code);
+      // Beskriv det overordnede problem
+      const overordnet = describeProblem(p0, data1.dataMap, code);
+
+      // Hent alle mulige overvejelser (p1, p2 osv.)
+      const allCond = considerations(data1.dataMap, code);
+
+      // Vælg to første overvejelser til punkterne
+      let bullet1 = allCond[0] || '';
+      let bullet2 = allCond[1] || '';
+      if (!bullet2) bullet2 = ''; // Hvis kun ét eller ingen, lad punkt 2 være tomt
 
       $('assignmentContainer').textContent =
 `Som rådgiver for regeringen i ${fullName} skal du skrive et notat på maksimalt 600 ord.
 
 ${overordnet}
 
-Notatet skal indeholde en præsentation af egnede tiltag med det formål at løse: ${p1}.  
+Notatet skal indeholde en præsentation af egnede tiltag med det formål at løse: ${p0}.
 
-Konkurrenceevnen  
-Levestandarden  
+1. ${bullet1}
+2. ${bullet2}
 
-Bedømmelsen foretages på baggrund af en helhedsvurdering. Der er fokus på din evne til at have den rigtige struktur i notatet, men også at du viser, at du kan forholde dig til enten finanspolitikken (to instrumenter med en direkte/indirekte effekt), pengepolitik (evt. forhold som begrænser denne samt instrumenter og obs punkter) eller valutapolitikken (evt. forhold som begrænser denne samt instrumenter og obs punkter).`;
+Bedømmelsen foretages på baggrund af en helhedsvurdering. Der er fokus på din evne til at strukturere notatet og vise, at du kan forholde dig til enten finanspolitikken (to instrumenter med direkte/indirekte effekt), pengepolitik (evt. begrænsninger og instrumenter) eller valutapolitikken (evt. begrænsninger og instrumenter).`;
     };
 
     // “Download Excel” (Land 1)
