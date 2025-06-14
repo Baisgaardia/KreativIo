@@ -9,6 +9,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -162,6 +164,10 @@
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 h-4 w-4"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"></path><path d="m18 2 4 4-4 4"></path><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2l4.3 8.6c.7 1.3 2.1 2.2 3.6 2.2H22"></path><path d="m18 22 4-4-4-4"></path></svg>
                             Bland igen
                         </button>
+                        <button type="button" id="download-pdf-btn" class="inline-flex items-center justify-center rounded-md text-sm font-medium h-10 px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50" disabled>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 h-4 w-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Download PDF
+                        </button>
                         <button type="button" id="clear-btn" class="inline-flex items-center justify-center rounded-md text-sm font-medium h-10 px-4 py-2 bg-destructive text-destructive-foreground hover:bg-destructive/90">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 h-4 w-4"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                             Ryd alt
@@ -196,6 +202,7 @@
             const clearButton = document.getElementById('clear-btn');
             const groupListContainer = document.getElementById('group-list');
             const toasterContainer = document.getElementById('toaster-container');
+            const downloadPdfButton = document.getElementById('download-pdf-btn');
 
             let lastSettings = null;
             let currentGroups = [];
@@ -260,6 +267,7 @@
                             <p class="text-muted-foreground mt-2">Indtast navne og klik på "Fordel i grupper" for at starte.</p>
                         </div>`;
                     shuffleAgainButton.disabled = true;
+                    downloadPdfButton.disabled = true;
                     return;
                 }
 
@@ -284,6 +292,7 @@
                 });
                 groupListContainer.appendChild(grid);
                 shuffleAgainButton.disabled = false;
+                downloadPdfButton.disabled = false;
             }
 
             function handleCreateGroups(values) {
@@ -372,6 +381,39 @@
                 }
             }
 
+            function handleDownloadPdf() {
+                if (currentGroups.length === 0) {
+                    showToast('Fejl', 'Der er ingen grupper at downloade.', 'destructive');
+                    return;
+                }
+                
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+
+                doc.setFontSize(18);
+                doc.text('Genererede Grupper', 14, 22);
+
+                const tableColumn = ["Gruppe", "Medlemmer"];
+                const tableRows = [];
+
+                currentGroups.forEach(group => {
+                    const groupData = [
+                        group.name,
+                        group.members.join(",\n")
+                    ];
+                    tableRows.push(groupData);
+                });
+
+                doc.autoTable({
+                    head: [tableColumn],
+                    body: tableRows,
+                    startY: 30,
+                });
+
+                doc.save('grupper.pdf');
+                showToast('Succes!', 'PDF-filen er blevet genereret.', 'success');
+            }
+
             form.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const values = {
@@ -397,6 +439,8 @@
                 const newValues = { ...lastSettings, names: allNames.join('\n') };
                 handleCreateGroups(newValues);
             });
+
+            downloadPdfButton.addEventListener('click', handleDownloadPdf);
 
             clearButton.addEventListener('click', () => {
                 currentGroups = [];
