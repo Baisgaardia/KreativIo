@@ -695,9 +695,8 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
         return batches;
     };
 
-    $('btnFetch').onclick = async () => {
+ $('btnFetch').onclick = async () => {
         const c1 = $('country1').value;
-        const c2 = $('country2').value; // Gemmes til evt. senere brug
         if (!c1) return alert('Vælg et land 1');
 
         $('tableContainer').textContent = 'Henter data...';
@@ -715,68 +714,52 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
         const caption1 = document.createElement('h2');
         caption1.textContent = countries.find(c => c.code === c1).name;
         
-        const indicatorBatches = createBatches(indicators, 4); // Opdel i grupper af 4
-        let hasFailed = false;
+        const indicatorBatches = createBatches(indicators, 4);
 
-        for (const batch of indicatorBatches) {
-            if (hasFailed) break;
-            
+        // Opret en liste af "løfter" (promises) om at hente data for hvert batch
+        const fetchPromises = indicatorBatches.map(batch => {
             const batchCodes = batch.flatMap(i => i.codes).join('+');
             const url = apiBase + flow + `${c1}.${batchCodes}.A` + params;
+            return fetch(proxyUrl + encodeURIComponent(url));
+        });
 
-            try {
-                const resp = await fetch(proxyUrl + encodeURIComponent(url));
-                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                
-                const rawJson = await resp.json();
+        try {
+            // Vent på at ALLE forespørgsler er færdige
+            const responses = await Promise.all(fetchPromises);
+
+            // Tjek om alle responses var succesfulde (status 200 OK)
+            for (const resp of responses) {
+                if (!resp.ok) {
+                    throw new Error(`En af forespørgslerne fejlede med status: ${resp.status}`);
+                }
+            }
+            
+            // Konverter alle succesfulde responses til JSON
+            const rawJsonArray = await Promise.all(responses.map(resp => resp.json()));
+
+            // Behandl og flet data fra hvert batch
+            rawJsonArray.forEach(rawJson => {
                 const parsedBatch = parseData(rawJson);
-
-                // Flet resultater fra dette batch ind i det samlede dataobjekt
                 Object.keys(parsedBatch.dataMap).forEach(key => {
                     const primaryIndicator = indicators.find(i => i.codes[0] === key);
-                    if(primaryIndicator) {
+                    if (primaryIndicator) {
                        Object.assign(data1.dataMap[key], parsedBatch.dataMap[key]);
                     }
                 });
+            });
 
-            } catch (err) {
-                console.error(`Fejl ved hentning af batch: ${batch.map(i=>i.name).join(', ')}`, err);
-                hasFailed = true;
-            }
+            // Når alt er hentet og parset, byg tabellen
+            $('tableContainer').innerHTML = '';
+            const finalTable = buildSingleTable(data1);
+            $('tableContainer').append(caption1, finalTable);
             
-            await delay(1000); // Vent 1 sekund før næste batch
-        }
+            graphMap = data1.dataMap;
+            ['btnGenerate','btnExcel','btnGraphs','themeSelect'].forEach(id => $(id).disabled = false);
+            updateThemeOptions(data1.dataMap);
 
-        if (hasFailed) {
-            $('tableContainer').textContent = 'En eller flere forespørgsler fejlede. Tjek konsollen (F12) for detaljer og prøv igen.';
-            return;
-        }
-
-        $('tableContainer').innerHTML = '';
-        const finalTable = buildSingleTable(data1);
-        $('tableContainer').append(caption1, finalTable);
-        
-        graphMap = data1.dataMap;
-        ['btnGenerate','btnExcel','btnGraphs','themeSelect'].forEach(id => $(id).disabled = false);
-        updateThemeOptions(data1.dataMap);
-        
-        // Simpel håndtering af Land 2 - kan udbygges med batch-logik hvis nødvendigt
-        if (c2) {
-            $('tableContainer').append(document.createElement('hr'), 'Henter data for Land 2...');
-            const allCodes = indicators.flatMap(i => i.codes).join('+');
-            const url2 = apiBase + flow + `${c2}.${allCodes}.A` + params;
-            try {
-                const raw2 = await fetch(proxyUrl + encodeURIComponent(url2)).then(r => r.json());
-                data2 = parseData(raw2);
-                lastCountry2 = c2;
-                const finalCompTable = buildComparisonTable(data1, data2, c1, c2);
-                const captionComp = document.createElement('h2');
-                captionComp.textContent = `Sammenligning: ${countries.find(c=>c.code===c1).name} vs. ${countries.find(c=>c.code===c2).name}`;
-                $('tableContainer').innerHTML = '';
-                $('tableContainer').append(captionComp, finalCompTable);
-            } catch(err) {
-                 $('tableContainer').append(document.createElement('br'), `Fejl ved hentning/parsing Land 2: ${err.message}`);
-            }
+        } catch (error) {
+            console.error("Fejl under hentning med Promise.all:", error);
+            $('tableContainer').textContent = `Der opstod en fejl under hentning af data. Tjek konsollen (F12) for detaljer. Fejl: ${error.message}`;
         }
     };
 
