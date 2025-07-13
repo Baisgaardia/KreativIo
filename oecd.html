@@ -695,7 +695,7 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
         return batches;
     };
 
- $('btnFetch').onclick = async () => {
+    $('btnFetch').onclick = async () => {
         const c1 = $('country1').value;
         if (!c1) return alert('Vælg et land 1');
 
@@ -714,20 +714,19 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
         const caption1 = document.createElement('h2');
         caption1.textContent = countries.find(c => c.code === c1).name;
         
-        const indicatorBatches = createBatches(indicators, 4);
-
-        // Opret en liste af "løfter" (promises) om at hente data for hvert batch
-        const fetchPromises = indicatorBatches.map(batch => {
-            const batchCodes = batch.flatMap(i => i.codes).join('+');
-            const url = apiBase + flow + `${c1}.${batchCodes}.A` + params;
+        // Opret en liste af "løfter" (promises) for HVER ENESTE indikator.
+        // Vi bruger ikke længere createBatches.
+        const fetchPromises = indicators.map(indicator => {
+            const indCodes = indicator.codes.join('+');
+            const url = apiBase + flow + `${c1}.${indCodes}.A` + params;
             return fetch(proxyUrl + encodeURIComponent(url));
         });
 
         try {
-            // Vent på at ALLE forespørgsler er færdige
+            // Vent på at ALLE 16+ forespørgsler er færdige
             const responses = await Promise.all(fetchPromises);
 
-            // Tjek om alle responses var succesfulde (status 200 OK)
+            // Tjek om alle responses var succesfulde
             for (const resp of responses) {
                 if (!resp.ok) {
                     throw new Error(`En af forespørgslerne fejlede med status: ${resp.status}`);
@@ -737,9 +736,9 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
             // Konverter alle succesfulde responses til JSON
             const rawJsonArray = await Promise.all(responses.map(resp => resp.json()));
 
-            // Behandl og flet data fra hvert batch
+            // Behandl og flet data fra hver enkelt forespørgsel
             rawJsonArray.forEach(rawJson => {
-                const parsedBatch = parseData(rawJson);
+                const parsedBatch = parseData(rawJson); // parseData virker stadig, da den behandler ét svar ad gangen
                 Object.keys(parsedBatch.dataMap).forEach(key => {
                     const primaryIndicator = indicators.find(i => i.codes[0] === key);
                     if (primaryIndicator) {
@@ -758,7 +757,7 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
             updateThemeOptions(data1.dataMap);
 
         } catch (error) {
-            console.error("Fejl under hentning med Promise.all:", error);
+            console.error("Fejl under hentning med Promise.all (enkelt-kald):", error);
             $('tableContainer').textContent = `Der opstod en fejl under hentning af data. Tjek konsollen (F12) for detaljer. Fejl: ${error.message}`;
         }
     };
