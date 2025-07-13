@@ -8,8 +8,8 @@
     body { font-family: Arial, sans-serif; margin: 2rem; }
     h1 { margin-bottom: 1rem; }
     .controls, #graphControls { display: flex; gap: .6em; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
-    .main-controls { justify-content: space-between; } /* For placing theme button to the right */
-    .right-controls { display: flex; gap: .6em; } /* For the new theme controls */
+    .main-controls { justify-content: space-between; }
+    .right-controls { display: flex; gap: .6em; }
     select, button, input[type="text"] { font-size: 1rem; padding: .5em; }
     table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
     th, td { border: 1px solid #ddd; padding: .5em; text-align: center; white-space: nowrap; }
@@ -36,13 +36,11 @@
           <option disabled selected value="">– vælg land 1 –</option>
         </select>
       </label>
-
       <label>Land 2:
         <select id="country2">
           <option disabled selected value="">– vælg land 2 –</option>
         </select>
       </label>
-
       <button id="btnFetch">Hent data</button>
       <button id="btnGenerate" disabled>Generer opgave (Land 1)</button>
       <button id="btnExcel" disabled>Download Excel (Land 1)</button>
@@ -95,7 +93,7 @@
 
   // --- KONSTANTER & LISTER ---
   // VIGTIGT: Udskift med din egen Netlify URL!
-  const proxyUrl  = 'https://snazzy-begonia-e1b624.netlify.app/.netlify/functions/oecd-proxy?url='; 
+  const proxyUrl  = 'https://DIN-NETLIFY-SIDE.netlify.app/.netlify/functions/oecd-proxy?url='; 
   const apiBase   = 'https://sdmx.oecd.org/public/rest/data/';
   const flow      = 'OECD.ECO.MAD,DSD_EO@DF_EO,1.2/';
   const startYear = 2015, endYear = 2024;
@@ -339,7 +337,7 @@
   }
 
   function populateGraphControls() {
-    graphYears = years; // Sørg for at graphYears er opdateret
+    graphYears = years;
     const f = $('filterInput'), iS = $('indicatorSelect'), yS = $('yearSelect'),
           l5 = $('last5Btn'), l10 = $('last10Btn'), pB = $('plotBtn');
     iS.innerHTML = '';
@@ -596,7 +594,7 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
               break;
           default:
               assignmentTemplate = 'Vælg venligst et tema for at generere en opgave.';
-      }
+        }
       return replaceTokens(assignmentTemplate, countryName, dataMap);
   }
 
@@ -683,18 +681,9 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
     $('apiCitation').textContent = `Source: OECD SDMX API (https://sdmx.oecd.org). © OECD. Nyeste år: ${endYear}.`;
 
     // ============================================================================
-    // ==================== START: NY, ROBUST HENTE-LOGIK =========================
+    // ==================== START: DEN ENDELIGE HENTE-LOGIK =======================
     // ============================================================================
     
-    const delay = ms => new Promise(res => setTimeout(res, ms));
-    const createBatches = (items, size) => {
-        const batches = [];
-        for (let i = 0; i < items.length; i += size) {
-            batches.push(items.slice(i, i + size));
-        }
-        return batches;
-    };
-
     $('btnFetch').onclick = async () => {
         const c1 = $('country1').value;
         if (!c1) return alert('Vælg et land 1');
@@ -704,18 +693,14 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
         $('assignmentContainer').textContent = '';
         $('graphSection').style.display = 'none';
 
-        // Nulstil data for ny hentning
         years = []; 
         data1 = { dataMap: {} };
         indicators.forEach(ind => { data1.dataMap[ind.codes[0]] = {}; });
         lastCountry1 = c1;
-        data2 = null; lastCountry2 = null;
 
         const caption1 = document.createElement('h2');
         caption1.textContent = countries.find(c => c.code === c1).name;
         
-        // Opret en liste af "løfter" (promises) for HVER ENESTE indikator.
-        // Vi bruger ikke længere createBatches.
         const fetchPromises = indicators.map(indicator => {
             const indCodes = indicator.codes.join('+');
             const url = apiBase + flow + `${c1}.${indCodes}.A` + params;
@@ -723,22 +708,18 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
         });
 
         try {
-            // Vent på at ALLE 16+ forespørgsler er færdige
             const responses = await Promise.all(fetchPromises);
 
-            // Tjek om alle responses var succesfulde
             for (const resp of responses) {
                 if (!resp.ok) {
                     throw new Error(`En af forespørgslerne fejlede med status: ${resp.status}`);
                 }
             }
             
-            // Konverter alle succesfulde responses til JSON
             const rawJsonArray = await Promise.all(responses.map(resp => resp.json()));
 
-            // Behandl og flet data fra hver enkelt forespørgsel
             rawJsonArray.forEach(rawJson => {
-                const parsedBatch = parseData(rawJson); // parseData virker stadig, da den behandler ét svar ad gangen
+                const parsedBatch = parseData(rawJson);
                 Object.keys(parsedBatch.dataMap).forEach(key => {
                     const primaryIndicator = indicators.find(i => i.codes[0] === key);
                     if (primaryIndicator) {
@@ -747,7 +728,6 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
                 });
             });
 
-            // Når alt er hentet og parset, byg tabellen
             $('tableContainer').innerHTML = '';
             const finalTable = buildSingleTable(data1);
             $('tableContainer').append(caption1, finalTable);
@@ -758,11 +738,14 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
 
         } catch (error) {
             console.error("Fejl under hentning med Promise.all (enkelt-kald):", error);
-            $('tableContainer').textContent = `Der opstod en fejl under hentning af data. Tjek konsollen (F12) for detaljer. Fejl: ${error.message}`;
+            $('tableContainer').textContent = `Der opstod en fejl under hentning af data. Tjek konsollen (F12). Fejl: ${error.message}`;
         }
     };
+    
+    // ============================================================================
+    // ===================== SLUT: DEN ENDELIGE HENTE-LOGIK =======================
+    // ============================================================================
 
-    // --- ALLE ANDRE EVENT LISTENERS ---
     $('btnGenerate').onclick = () => {
         if (!data1) return alert('Hent data for Land 1 først');
         const code = lastCountry1;
