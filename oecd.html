@@ -94,7 +94,8 @@
   const $ = id => document.getElementById(id);
 
   // --- KONSTANTER & LISTER ---
-  const proxyUrl  = 'https://corsproxy.io/?url=';
+  // VIGTIGT: Udskift med din egen Netlify URL!
+  const proxyUrl  = 'https://DIN-NETLIFY-SIDE.netlify.app/.netlify/functions/oecd-proxy?url='; 
   const apiBase   = 'https://sdmx.oecd.org/public/rest/data/';
   const flow      = 'OECD.ECO.MAD,DSD_EO@DF_EO,1.2/';
   const startYear = 2015, endYear = 2024;
@@ -152,21 +153,13 @@
     });
   }
 
-  async function fetchRaw(countryCode) {
-    const allCodes = indicators.flatMap(i => i.codes).join('+');
-    const url = apiBase + flow + `${countryCode}.${allCodes}.A` + params;
-    const resp = await fetch(proxyUrl + encodeURIComponent(url), {
-      headers: { 'Accept': 'application/vnd.sdmx.data+json;version=1.0' }
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return resp.json();
-  }
-
   function parseData(rawJson) {
     const s = rawJson.structure || rawJson.data.structure;
     const sd = s.dimensions.series;
     const od = s.dimensions.observation[0].values.map(v => v.id);
-    if (!years.length) years = od.slice().sort((a,b) => +a - +b);
+    if (years.length === 0) {
+        years = od.slice().sort((a,b) => +a - +b);
+    }
     const dataMap = {};
     indicators.forEach(ind => {
       dataMap[ind.codes[0]] = {};
@@ -176,12 +169,15 @@
     Object.entries(series).forEach(([key, serie]) => {
       const parts = key.split(':');
       const code  = sd[1].values[+parts[1]].id;
-      Object.entries(serie.observations || {}).forEach(([t, val]) => {
-        const år = od[+t];
-        indicators.forEach(ind => {
-          if (ind.codes.includes(code)) dataMap[ind.codes[0]][år] = val[0];
+      const primaryIndicator = indicators.find(ind => ind.codes.includes(code));
+      if (primaryIndicator) {
+        Object.entries(serie.observations || {}).forEach(([t, val]) => {
+            const år = od[+t];
+            if (dataMap[primaryIndicator.codes[0]][år] === null) {
+                dataMap[primaryIndicator.codes[0]][år] = val[0];
+            }
         });
-      });
+      }
     });
     return { years, dataMap };
   }
@@ -235,14 +231,16 @@
 
   function problems(dataMap) {
     const p = [];
-    const debt = dataMap['GGFLMQ'][endYear];
+    const latestYearDataAvailable = years.slice().reverse().find(y => dataMap['UNR'][y] != null) || endYear;
+
+    const debt = dataMap['GGFLMQ'][latestYearDataAvailable];
     if (debt > 100) p.push('rigtig høj offentlig gæld (>100 % af BNP)');
     else if (debt > 60) p.push('offentlig gæld > 60 % af BNP');
-    if (dataMap['CPI_YTYPCT'][endYear] > 4) p.push('høj samlet inflation');
-    if (dataMap['CBGDPR'][endYear] > 6) p.push('stort betalingsbalanceoverskud (> 6 %)');
-    const u = dataMap['UNR'][endYear];
+    if (dataMap['CPI_YTYPCT'][latestYearDataAvailable] > 4) p.push('høj samlet inflation');
+    if (dataMap['CBGDPR'][latestYearDataAvailable] > 6) p.push('stort betalingsbalanceoverskud (> 6 %)');
+    const u = dataMap['UNR'][latestYearDataAvailable];
     if (u >= 3 && u <= 4) p.push('fuld beskæftigelse');
-    const g = dataMap['GDPV_ANNPCT'][endYear];
+    const g = dataMap['GDPV_ANNPCT'][latestYearDataAvailable];
     if (g > 2) p.push('højkonjunktur/overophedning');
     if (g < 1) p.push('lavkonjunktur');
     const last3 = years.slice(-3);
@@ -251,14 +249,15 @@
     return p;
   }
   
-  // --- NY FUNKTION TIL DYNAMISKE FOKUSOMRÅDER ---
   function considerations(dataMap, code) {
     const lines = new Set();
-    const u  = dataMap['UNR'][endYear];
-    const d  = dataMap['GGFLMQ'][endYear];
-    const ci = dataMap['CPI_YTYPCT'][endYear];
-    const co = dataMap['PCORE_YTYPCT'][endYear];
-    const b  = dataMap['CBGDPR'][endYear];
+    const latestYearDataAvailable = years.slice().reverse().find(y => dataMap['UNR'][y] != null) || endYear;
+
+    const u  = dataMap['UNR'][latestYearDataAvailable];
+    const d  = dataMap['GGFLMQ'][latestYearDataAvailable];
+    const ci = dataMap['CPI_YTYPCT'][latestYearDataAvailable];
+    const co = dataMap['PCORE_YTYPCT'][latestYearDataAvailable];
+    const b  = dataMap['CBGDPR'][latestYearDataAvailable];
     const last3 = years.slice(-3);
 
     if (u >= 2 && u < 4) {
@@ -295,20 +294,21 @@
   }
 
   function describeProblem(p0, dataMap, code) {
+    const latestYearDataAvailable = years.slice().reverse().find(y => dataMap['UNR'][y] != null) || endYear;
     const landName = countries.find(c => c.code === code).name;
-    const d = dataMap['GGFLMQ'][endYear], ci = dataMap['CPI_YTYPCT'][endYear],
-          co = dataMap['PCORE_YTYPCT'][endYear], b = dataMap['CBGDPR'][endYear],
-          u = dataMap['UNR'][endYear], g = dataMap['GDPV_ANNPCT'][endYear];
+    const d = dataMap['GGFLMQ'][latestYearDataAvailable], ci = dataMap['CPI_YTYPCT'][latestYearDataAvailable],
+          co = dataMap['PCORE_YTYPCT'][latestYearDataAvailable], b = dataMap['CBGDPR'][latestYearDataAvailable],
+          u = dataMap['UNR'][latestYearDataAvailable], g = dataMap['GDPV_ANNPCT'][latestYearDataAvailable];
     let s = '';
     if (p0.includes('rigtig høj offentlig gæld')) s = `${landName} har en meget høj offentlig gæld på ${d.toFixed(2)} % af BNP, hvilket skaber ubalancer i landets økonomi samt medfører faldende tillid og udfordringer ift. EU og konjunkturer.`;
     else if (p0.includes('offentlig gæld') && p0.includes('høj samlet inflation')) s = `${landName} har en offentlig gæld på ${d.toFixed(2)} % af BNP og en samlet inflation på ${ci.toFixed(2)} % (kerneinflation: ${co.toFixed(2)} %). Kombinationen af høj gæld og inflation presser både statens indtægter/udgifter og husholdningerne.`;
-    else if (p0.includes('offentlig gæld > 60 % af BNP') && !p0.includes('høj samlet inflation')) s = `${landName} har en offentlig gæld på ${d.toFixed(2)} % af BNP i ${endYear}, hvilket presser statens indtægter og udgifter samt svækker mulighederne for at føre finanspolitik. Det påvirker også tillid og EU’s krav.`;
-    else if (p0.includes('høj samlet inflation') && p0.includes('stort betalingsbalanceoverskud')) s = `Den samlede inflation i ${landName} er ${ci.toFixed(2)} % i ${endYear}, mens betalingsbalancen ligger på ${b.toFixed(2)} % af BNP (stort overskud). Det høje inflationsniveau kan underminere konkurrenceevnen, selvom overskuddet på betalingsbalancen er stort. Et stort betalingsbalanceoverskud er et problem i forhold til andre samhandelslande.`;
-    else if (p0.includes('høj samlet inflation') && !p0.includes('stort betalingsbalanceoverskud')) s = `Den samlede inflation i ${landName} er ${ci.toFixed(2)} % i ${endYear}, hvilket overstiger kerneinflationen (${co.toFixed(2)} %) og indikerer prisstigninger fra udlandet. Det presser forbrugernes købekraft og konkurrenceevne.`;
-    else if (p0.includes('stort betalingsbalanceoverskud')) s = `Betalingsbalancen i ${landName} er ${b.toFixed(2)} % af BNP i ${endYear} (stort overskud). Et kraftigt overskud kan udfordre landets konkurrenceevne og samhandel med andre lande.`;
+    else if (p0.includes('offentlig gæld > 60 % af BNP') && !p0.includes('høj samlet inflation')) s = `${landName} har en offentlig gæld på ${d.toFixed(2)} % af BNP i ${latestYearDataAvailable}, hvilket presser statens indtægter og udgifter samt svækker mulighederne for at føre finanspolitik. Det påvirker også tillid og EU’s krav.`;
+    else if (p0.includes('høj samlet inflation') && p0.includes('stort betalingsbalanceoverskud')) s = `Den samlede inflation i ${landName} er ${ci.toFixed(2)} % i ${latestYearDataAvailable}, mens betalingsbalancen ligger på ${b.toFixed(2)} % af BNP (stort overskud). Det høje inflationsniveau kan underminere konkurrenceevnen, selvom overskuddet på betalingsbalancen er stort. Et stort betalingsbalanceoverskud er et problem i forhold til andre samhandelslande.`;
+    else if (p0.includes('høj samlet inflation') && !p0.includes('stort betalingsbalanceoverskud')) s = `Den samlede inflation i ${landName} er ${ci.toFixed(2)} % i ${latestYearDataAvailable}, hvilket overstiger kerneinflationen (${co.toFixed(2)} %) og indikerer prisstigninger fra udlandet. Det presser forbrugernes købekraft og konkurrenceevne.`;
+    else if (p0.includes('stort betalingsbalanceoverskud')) s = `Betalingsbalancen i ${landName} er ${b.toFixed(2)} % af BNP i ${latestYearDataAvailable} (stort overskud). Et kraftigt overskud kan udfordre landets konkurrenceevne og samhandel med andre lande.`;
     else if (p0.includes('fuld beskæftigelse')) s = `Arbejdsløsheden i ${landName} er på blot ${u.toFixed(2)} % (fuld beskæftigelse), hvilket kan skabe flaskehalsproblemer og mismatchproblemer i økonomien.`;
-    else if (p0.includes('højkonjunktur/overophedning')) s = `Økonomien i ${landName} vokser med ${g.toFixed(2)} % i ${endYear}, hvilket peger på overophedning. Derfor kan der være behov for at lægge en dæmper på den økonomiske udvikling.`;
-    else if (p0.includes('lavkonjunktur')) s = `Økonomien i ${landName} vokser kun med ${g.toFixed(2)} % i ${endYear}, hvilket indikerer lavkonjunktur som på sigt kan udvikle sig til en krise. Derfor er der behov for at sætte lidt/mere gang i landets økonomi.`;
+    else if (p0.includes('højkonjunktur/overophedning')) s = `Økonomien i ${landName} vokser med ${g.toFixed(2)} % i ${latestYearDataAvailable}, hvilket peger på overophedning. Derfor kan der være behov for at lægge en dæmper på den økonomiske udvikling.`;
+    else if (p0.includes('lavkonjunktur')) s = `Økonomien i ${landName} vokser kun med ${g.toFixed(2)} % i ${latestYearDataAvailable}, hvilket indikerer lavkonjunktur som på sigt kan udvikle sig til en krise. Derfor er der behov for at sætte lidt/mere gang i landets økonomi.`;
     else if (p0.includes('økonomisk krise')) {
         const y1 = years[years.length - 3], y2 = years[years.length - 2], y3 = years[years.length - 1];
         const g1 = dataMap['GDPV_ANNPCT'][y1].toFixed(2), g2 = dataMap['GDPV_ANNPCT'][y2].toFixed(2), g3 = dataMap['GDPV_ANNPCT'][y3].toFixed(2);
@@ -339,6 +339,7 @@
   }
 
   function populateGraphControls() {
+    graphYears = years; // Sørg for at graphYears er opdateret
     const f = $('filterInput'), iS = $('indicatorSelect'), yS = $('yearSelect'),
           l5 = $('last5Btn'), l10 = $('last10Btn'), pB = $('plotBtn');
     iS.innerHTML = '';
@@ -383,44 +384,44 @@
     };
   }
 
-    function replaceTokens(text, countryName, dataMap) {
-        const latestYear = endYear;
-        const getValue = (indicatorCode) => {
-            const val = dataMap[indicatorCode] ? dataMap[indicatorCode][latestYear] : null;
-            return val != null ? val.toFixed(2).replace('.', ',') : 'data ikke tilgængelig';
-        };
-        const tokens = {
-            '[LANDE_NAVN]': countryName,
-            '[ARBEJDSLØSHED_PCT]': `arbejdsløsheden er ${getValue('UNR')}%`,
-            '[BNP_VÆKST_PCT]': `BNP-væksten er ${getValue('GDPV_ANNPCT')}%`,
-            '[INFLATION_PCT]': `samlet inflation ${getValue('CPI_YTYPCT')}%`,
-            '[KERNEINFLATION_PCT]': `kerneinflation ${getValue('PCORE_YTYPCT')}%`,
-            '[BETALINGSBALANCE_PCT_BNP]': `betalingsbalancen i % af BNP er ${getValue('CBGDPR')}%`,
-            '[OFF_ENTLIGT_UNDERSKUD_PCT_BNP]': `offentligt underskud i % af BNP er ${getValue('NLGXQ')}%`,
-            '[OFF_GÆLD_PCT_BNP]': `offentlig gæld i % af BNP er ${getValue('GGFLMQ')}%`,
-            '[PRODUKTIVITET_INDEX]': `Produktivitet (volumenindeks) er ${getValue('PDTY')}`,
-            '[PRISKONKURRENCE_INDEX_2021]': `Priskonkurrence, indeks 2021 er ${getValue('CPIDR')}`,
-            '[LØNOMKOSTNINGER_INDEX_2021]': `Lønomkostninger, indeks 2021 er ${getValue('ULCDR')}`,
-            '[Eksport_%]': `eksporten er ${getValue('XGSV_ANNPCT')}%`,
-            '[Privat_forbrug_%]': `Privat forbrug er ${getValue('CPV_ANNPCT')}%`,
-            '[Offentligt_forbrug_%]': `Offentligt forbrug er ${getValue('CGV_ANNPCT')}%`,
-            '[Offentlige_investeringer_%]': `Offentlige investeringer er ${getValue('ITV_ANNPCT')}%`
-        };
-        let replacedText = text;
-        for (const token in tokens) {
-            const regex = new RegExp(token.replace(/\[/g, '\\[').replace(/\]/g, '\\]'), 'g');
-            replacedText = replacedText.replace(regex, tokens[token]);
-        }
-        return replacedText;
-    }
+  function replaceTokens(text, countryName, dataMap) {
+      const latestYear = years.slice().reverse().find(y => dataMap['UNR'][y] != null) || endYear;
+      const getValue = (indicatorCode) => {
+          const val = dataMap[indicatorCode] ? dataMap[indicatorCode][latestYear] : null;
+          return val != null ? val.toFixed(2).replace('.', ',') : 'data ikke tilgængelig';
+      };
+      const tokens = {
+          '[LANDE_NAVN]': countryName,
+          '[ARBEJDSLØSHED_PCT]': `arbejdsløsheden er ${getValue('UNR')}%`,
+          '[BNP_VÆKST_PCT]': `BNP-væksten er ${getValue('GDPV_ANNPCT')}%`,
+          '[INFLATION_PCT]': `samlet inflation ${getValue('CPI_YTYPCT')}%`,
+          '[KERNEINFLATION_PCT]': `kerneinflation ${getValue('PCORE_YTYPCT')}%`,
+          '[BETALINGSBALANCE_PCT_BNP]': `betalingsbalancen i % af BNP er ${getValue('CBGDPR')}%`,
+          '[OFF_ENTLIGT_UNDERSKUD_PCT_BNP]': `offentligt underskud i % af BNP er ${getValue('NLGXQ')}%`,
+          '[OFF_GÆLD_PCT_BNP]': `offentlig gæld i % af BNP er ${getValue('GGFLMQ')}%`,
+          '[PRODUKTIVITET_INDEX]': `Produktivitet (volumenindeks) er ${getValue('PDTY')}`,
+          '[PRISKONKURRENCE_INDEX_2021]': `Priskonkurrence, indeks 2021 er ${getValue('CPIDR')}`,
+          '[LØNOMKOSTNINGER_INDEX_2021]': `Lønomkostninger, indeks 2021 er ${getValue('ULCDR')}`,
+          '[Eksport_%]': `eksporten er ${getValue('XGSV_ANNPCT')}%`,
+          '[Privat_forbrug_%]': `Privat forbrug er ${getValue('CPV_ANNPCT')}%`,
+          '[Offentligt_forbrug_%]': `Offentligt forbrug er ${getValue('CGV_ANNPCT')}%`,
+          '[Offentlige_investeringer_%]': `Offentlige investeringer er ${getValue('ITV_ANNPCT')}%`
+      };
+      let replacedText = text;
+      for (const token in tokens) {
+          const regex = new RegExp(token.replace(/\[/g, '\\[').replace(/\]/g, '\\]'), 'g');
+          replacedText = replacedText.replace(regex, tokens[token]);
+      }
+      return replacedText;
+  }
 
-    function generateThemeAssignment(theme, countryName, dataMap) {
-        let assignmentTemplate = '';
-        const latestYear = endYear;
+  function generateThemeAssignment(theme, countryName, dataMap) {
+      let assignmentTemplate = '';
+      const latestYear = years.slice().reverse().find(y => dataMap['UNR'][y] != null) || endYear;
 
-        switch (theme) {
-            case 'arbejdsmarked_mismatch':
-                assignmentTemplate = `
+      switch (theme) {
+          case 'arbejdsmarked_mismatch':
+              assignmentTemplate = `
 1. Arbejdsmarkedet og strukturpolitik
 
 Opgave:
@@ -435,9 +436,9 @@ Giv teoretiske årsagsforklaringer ved hjælp af kausalsammenhænge. Indtegn æn
 Inddrag relevante nøgletal i form af den økonomiske vækst, kerne- og samlet inflation, eksport, betalingsbalancen i % af BNP og de tre konkurrenceparametre i form af Produktivitet, Priskonkurrence og Lønomkostninger.
 Diskutér strukturpolitiske tiltag eller finanspolitiske tiltag, som kan mindske chancen for en overophedning.
 `;
-                break;
-            case 'arbejdsmarked_strukturel':
-                assignmentTemplate = `
+              break;
+          case 'arbejdsmarked_strukturel':
+              assignmentTemplate = `
 1. Arbejdsmarkedet og strukturpolitik
 
 Opgave:
@@ -451,9 +452,9 @@ Beskriv situation ud fra figur om strukturel ledighed i IØ A-bogen.
 Hvilke økonomiske tiltag burde i teorien kunne løse en situation med høj arbejdsløshed?
 Hvad er problemet i relation til, hvis der er tale om strukturel ledighed, og hvilken økonomisk politik vil du så anbefale?
 `;
-                break;
-            case 'oekonomisk_hoejkonjunktur':
-                assignmentTemplate = `
+              break;
+          case 'oekonomisk_hoejkonjunktur':
+              assignmentTemplate = `
 2. Økonomiske politikker
 
 Opgave:
@@ -468,9 +469,9 @@ Inddrag i din besvarelse eventuelle EU-regler. Forhold dig til vigtige ting i di
 * Pengepolitik: Kort- og langsigtede effekter for husholdninger, virksomheder og investorer (indtegn i U/E diagram for valuta), evt. begrænsninger ift. EU.
 * Valutapolitik: Evt. begrænsninger ift. EU, indtegnelse i U/E diagram for Valuta.
 `;
-                break;
-            case 'oekonomisk_lavkonjunktur':
-                assignmentTemplate = `
+              break;
+          case 'oekonomisk_lavkonjunktur':
+              assignmentTemplate = `
 2. Økonomiske politikker
 
 Opgave:
@@ -485,9 +486,9 @@ Forhold dig til vigtige ting i din besvarelse som:
 * Pengepolitik: Kort- og langsigtede effekter for husholdninger, virksomheder og investorer (indtegn i U/E diagram for valuta), evt. begrænsninger ift. EU.
 * Valutapolitik: Evt. begrænsninger ift. EU, indtegnelse i U/E diagram for Valuta.
 `;
-                break;
-            case 'offentlig_gaeld':
-                assignmentTemplate = `
+              break;
+          case 'offentlig_gaeld':
+              assignmentTemplate = `
 2. Økonomiske politikker
 
 Opgave:
@@ -504,9 +505,9 @@ Inddrag i din besvarelse eventuelle EU-regler. Forhold dig til vigtige ting i di
 * Pengepolitik: Kort- og langsigtede effekter for husholdninger, virksomheder og investorer (indtegn i U/E diagram for valuta), evt. begrænsninger ift. EU.
 * Valutapolitik: Evt. begrænsninger ift. EU, indtegnelse i U/E diagram for Valuta.
 `;
-                break;
-            case 'inflation_hoej':
-                assignmentTemplate = `
+              break;
+          case 'inflation_hoej':
+              assignmentTemplate = `
 2. Økonomiske politikker
 
 Opgave:
@@ -524,15 +525,15 @@ Inddrag i din besvarelse eventuelle EU-regler. Forhold dig til vigtige ting i di
 * Valutapolitik: Evt. begrænsninger ift. EU.
 * Arbejdsmarkedspolitik: Argumentation for valg af en de fire arbejdsmarkedspolitiske instrumenter.
 `;
-                break;
-            case 'oekonomisk_kerneinflation':
-                let coreInflation = dataMap['PCORE_YTYPCT'] ? dataMap['PCORE_YTYPCT'][latestYear] : null;
-                let additionalNote = '';
-                if (coreInflation !== null && coreInflation > 2.5) {
-                    additionalNote = '\nKerneinflationen overstiger desuden den vejledende grænse på 2,5 %.\n';
-                }
+              break;
+          case 'oekonomisk_kerneinflation':
+              let coreInflation = dataMap['PCORE_YTYPCT'] ? dataMap['PCORE_YTYPCT'][latestYear] : null;
+              let additionalNote = '';
+              if (coreInflation !== null && coreInflation > 2.5) {
+                  additionalNote = '\nKerneinflationen overstiger desuden den vejledende grænse på 2,5 %.\n';
+              }
 
-                assignmentTemplate = `
+              assignmentTemplate = `
 2. Økonomiske politikker
 
 Opgave:
@@ -553,9 +554,9 @@ Overvej følgende tanker eller andre relevante økonomiske politikker:
 * Valutapolitik: Evt. begrænsninger ift. EU.
 * Arbejdsmarkedspolitik: Argumentation for valg af en de fire arbejdsmarkedspolitiske instrumenter.
 `;
-                break;
-            case 'oekonomisk_betalingsbalance':
-                assignmentTemplate = `
+              break;
+          case 'oekonomisk_betalingsbalance':
+              assignmentTemplate = `
 2. Økonomiske politikker
 
 Opgave:
@@ -577,9 +578,9 @@ Overvej følgende tanker eller andre relevante økonomiske politikker:
 * Valutapolitik: Evt. begrænsninger ift. EU.
 * Arbejdsmarkedspolitik: Argumentation for valg af en de fire arbejdsmarkedspolitiske instrumenter.
 `;
-                break;
-            case 'analyse_forsyningsbalance':
-                assignmentTemplate = `
+              break;
+          case 'analyse_forsyningsbalance':
+              assignmentTemplate = `
 3.0 Mini-analyse af forsyningsbalancen
 
 Opgave:
@@ -592,158 +593,194 @@ Opstil efterspørgselskomponenterne med en passende overskrift.
 Dernæst bedes du kommentere på, hvorvidt efterspørgselskomponenten bidrager/ikke bidrager til den økonomiske udvikling i det seneste år.
 Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på den procentvise udvikling i Privat forbruget, offentligt forbrug, Offentlige investeringer og eksporten.
 `;
-                break;
-            default:
-                assignmentTemplate = 'Vælg venligst et tema for at generere en opgave.';
-        }
-        return replaceTokens(assignmentTemplate, countryName, dataMap);
-    }
+              break;
+          default:
+              assignmentTemplate = 'Vælg venligst et tema for at generere en opgave.';
+      }
+      return replaceTokens(assignmentTemplate, countryName, dataMap);
+  }
 
-    function updateThemeOptions(dataMap) {
-        const themeSelect = $('themeSelect');
-        const latestYear = endYear;
+  function updateThemeOptions(dataMap) {
+      const themeSelect = $('themeSelect');
+      const latestYear = years.slice().reverse().find(y => dataMap['UNR'][y] != null) || endYear;
 
-        const unemployment = dataMap['UNR'] ? dataMap['UNR'][latestYear] : null;
-        const gdpGrowth = dataMap['GDPV_ANNPCT'] ? dataMap['GDPV_ANNPCT'][latestYear] : null;
-        const totalInflation = dataMap['CPI_YTYPCT'] ? dataMap['CPI_YTYPCT'][latestYear] : null;
-        const coreInflation = dataMap['PCORE_YTYPCT'] ? dataMap['PCORE_YTYPCT'][latestYear] : null;
-        const publicDebt = dataMap['GGFLMQ'] ? dataMap['GGFLMQ'][latestYear] : null;
-        const balanceBOP = dataMap['CBGDPR'] ? dataMap['CBGDPR'][latestYear] : null;
+      const unemployment = dataMap['UNR'] ? dataMap['UNR'][latestYear] : null;
+      const gdpGrowth = dataMap['GDPV_ANNPCT'] ? dataMap['GDPV_ANNPCT'][latestYear] : null;
+      const totalInflation = dataMap['CPI_YTYPCT'] ? dataMap['CPI_YTYPCT'][latestYear] : null;
+      const coreInflation = dataMap['PCORE_YTYPCT'] ? dataMap['PCORE_YTYPCT'][latestYear] : null;
+      const publicDebt = dataMap['GGFLMQ'] ? dataMap['GGFLMQ'][latestYear] : null;
+      const balanceBOP = dataMap['CBGDPR'] ? dataMap['CBGDPR'][latestYear] : null;
 
-        Array.from(themeSelect.options).forEach(option => {
-            if (option.value !== "") option.disabled = true;
-        });
+      Array.from(themeSelect.options).forEach(option => {
+          if (option.value !== "") option.disabled = true;
+      });
 
-        if (unemployment !== null && gdpGrowth !== null && totalInflation !== null && publicDebt !== null && coreInflation !== null && balanceBOP !== null) {
-            if (unemployment < 4) {
-                themeSelect.querySelector('option[value="arbejdsmarked_mismatch"]').disabled = false;
-            }
-            if (unemployment > 8) {
-                themeSelect.querySelector('option[value="arbejdsmarked_strukturel"]').disabled = false;
-            }
-            if (gdpGrowth > 2) {
-                themeSelect.querySelector('option[value="oekonomisk_hoejkonjunktur"]').disabled = false;
-            }
-            if (gdpGrowth < 1) {
-                 themeSelect.querySelector('option[value="oekonomisk_lavkonjunktur"]').disabled = false;
-            }
-            if (publicDebt > 90) {
-                themeSelect.querySelector('option[value="offentlig_gaeld"]').disabled = false;
-            }
-            if (totalInflation > 3) {
-                themeSelect.querySelector('option[value="inflation_hoej"]').disabled = false;
-            }
-            if (coreInflation > totalInflation) {
-                themeSelect.querySelector('option[value="oekonomisk_kerneinflation"]').disabled = false;
-            }
-            if (balanceBOP > 6) {
-                themeSelect.querySelector('option[value="oekonomisk_betalingsbalance"]').disabled = false;
-            }
-        }
-        
-        themeSelect.querySelector('option[value="analyse_forsyningsbalance"]').disabled = false;
+      if (unemployment !== null && gdpGrowth !== null && totalInflation !== null && publicDebt !== null && coreInflation !== null && balanceBOP !== null) {
+          if (unemployment < 4) {
+              themeSelect.querySelector('option[value="arbejdsmarked_mismatch"]').disabled = false;
+          }
+          if (unemployment > 8) {
+              themeSelect.querySelector('option[value="arbejdsmarked_strukturel"]').disabled = false;
+          }
+          if (gdpGrowth > 2) {
+              themeSelect.querySelector('option[value="oekonomisk_hoejkonjunktur"]').disabled = false;
+          }
+          if (gdpGrowth < 1) {
+               themeSelect.querySelector('option[value="oekonomisk_lavkonjunktur"]').disabled = false;
+          }
+          if (publicDebt > 90) {
+              themeSelect.querySelector('option[value="offentlig_gaeld"]').disabled = false;
+          }
+          if (totalInflation > 3) {
+              themeSelect.querySelector('option[value="inflation_hoej"]').disabled = false;
+          }
+          if (coreInflation > totalInflation) {
+              themeSelect.querySelector('option[value="oekonomisk_kerneinflation"]').disabled = false;
+          }
+          if (balanceBOP > 6) {
+              themeSelect.querySelector('option[value="oekonomisk_betalingsbalance"]').disabled = false;
+          }
+      }
+      
+      themeSelect.querySelector('option[value="analyse_forsyningsbalance"]').disabled = false;
 
-        themeSelect.value = "";
-        $('btnGenerateTheme').disabled = true;
-        $('btnDownloadThemeWord').disabled = true;
-    }
+      themeSelect.value = "";
+      $('btnGenerateTheme').disabled = true;
+      $('btnDownloadThemeWord').disabled = true;
+  }
 
-    async function downloadHtmlAsWord(filename, htmlContent) {
-        try {
-            let formattedHtml = htmlContent.replace(/<br\s*[\/]?>/gi, '</p><p>');
-            const preamble = `
-                <!DOCTYPE html><html><head><meta charset="UTF-8"><title>Opgave</title>
-                <style>
-                    body { font-family: Calibri, sans-serif; font-size: 11pt; margin: 2cm; }
-                    h1, h2, h3, h4, h5, h6 { font-family: 'Cambria', serif; margin-top: 1em; margin-bottom: 0.5em; }
-                    b, strong { font-weight: bold; } i, em { font-style: italic; }
-                    ul { margin-left: 2em; } li { margin-bottom: 0.5em; }
-                    p { margin-bottom: 0.5em; line-height: 1.5; }
-                    div { white-space: pre-wrap; }
-                </style></head><body>`;
-            const postamble = `</body></html>`;
-            const fullHtml = preamble + `<div>${formattedHtml}</div>` + postamble;
-            const blob = new Blob([fullHtml], { type: 'application/msword' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error("Error downloading Word file:", error);
-            alert("Kunne ikke downloade Word-filen. Prøv igen.");
-        }
-    }
+  async function downloadHtmlAsWord(filename, htmlContent) {
+      try {
+          let formattedHtml = htmlContent.replace(/<br\s*[\/]?>/gi, '</p><p>');
+          const preamble = `
+              <!DOCTYPE html><html><head><meta charset="UTF-8"><title>Opgave</title>
+              <style>
+                  body { font-family: Calibri, sans-serif; font-size: 11pt; margin: 2cm; }
+                  h1, h2, h3, h4, h5, h6 { font-family: 'Cambria', serif; margin-top: 1em; margin-bottom: 0.5em; }
+                  b, strong { font-weight: bold; } i, em { font-style: italic; }
+                  ul { margin-left: 2em; } li { margin-bottom: 0.5em; }
+                  p { margin-bottom: 0.5em; line-height: 1.5; }
+                  div { white-space: pre-wrap; }
+              </style></head><body>`;
+          const postamble = `</body></html>`;
+          const fullHtml = preamble + `<div>${formattedHtml}</div>` + postamble;
+          const blob = new Blob([fullHtml], { type: 'application/msword' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+      } catch (error) {
+          console.error("Error downloading Word file:", error);
+          alert("Kunne ikke downloade Word-filen. Prøv igen.");
+      }
+  }
 
   document.addEventListener('DOMContentLoaded', () => {
     populateCountries();
     $('apiCitation').textContent = `Source: OECD SDMX API (https://sdmx.oecd.org). © OECD. Nyeste år: ${endYear}.`;
 
-    $('btnFetch').onclick = async () => {
-      const c1 = $('country1').value;
-      const c2 = $('country2').value;
-      if (!data1 || c1 !== lastCountry1) {
-        if (!c1) return alert('Vælg et land 1');
-        $('tableContainer').textContent = 'Henter data for Land 1…';
-        try {
-          const raw1 = await fetchRaw(c1);
-          data1 = parseData(raw1);
-          lastCountry1 = c1;
-          data2 = null; lastCountry2 = null; $('country2').value = '';
-          $('assignmentContainer').textContent = '';
-          $('graphSection').style.display = 'none';
-          $('tableContainer').textContent = '';
-          const tbl1 = buildSingleTable(data1);
-          const caption1 = document.createElement('h2');
-          caption1.textContent = countries.find(c => c.code === c1).name;
-          $('tableContainer').append(caption1, tbl1);
-          graphMap = data1.dataMap; graphYears = data1.years;
-          $('btnGenerate').disabled = false;
-          $('btnExcel').disabled = false;
-          $('btnGraphs').disabled = false;
-          $('themeSelect').disabled = false;
-          updateThemeOptions(data1.dataMap);
-        } catch(err) {
-          console.error(err);
-          $('tableContainer').textContent = `Fejl ved hentning/parsing Land 1: ${err.message}`;
-          data1 = null;
-          ['btnGenerateTheme','btnDownloadThemeWord','themeSelect','btnGenerate','btnExcel','btnGraphs'].forEach(id => $(id).disabled = true);
+    // ============================================================================
+    // ==================== START: NY, ROBUST HENTE-LOGIK =========================
+    // ============================================================================
+    
+    const delay = ms => new Promise(res => setTimeout(res, ms));
+    const createBatches = (items, size) => {
+        const batches = [];
+        for (let i = 0; i < items.length; i += size) {
+            batches.push(items.slice(i, i + size));
         }
-      } else if (!data2 && c2 && c2 !== lastCountry2) {
-        $('tableContainer').textContent = 'Henter data for Land 2…';
-        try {
-          const raw2 = await fetchRaw(c2);
-          data2 = parseData(raw2);
-          lastCountry2 = c2;
-          $('tableContainer').textContent = '';
-          const country1Name = countries.find(c => c.code === c1).name;
-          const country2Name = countries.find(c => c.code === c2).name;
-          const compTable = buildComparisonTable(data1, data2, c1, c2);
-          const captionComp = document.createElement('h2');
-          captionComp.textContent = `Sammenligning: ${country1Name} vs. ${country2Name}`;
-          $('tableContainer').append(captionComp, compTable);
-        } catch(err) {
-          console.error(err);
-          $('tableContainer').textContent = `Fejl ved hentning/parsing Land 2: ${err.message}`;
-          data2 = null;
-        }
-      } else {
-        if (!c1) return alert('Vælg et land 1');
-        if (!c2) {
-            $('tableContainer').textContent = '';
-            const tbl1 = buildSingleTable(data1);
-            const caption1 = document.createElement('h2');
-caption1.textContent = countries.find(c => c.code === c1).name;
-            $('tableContainer').append(caption1, tbl1);
-        }
-        if (data2 && c2 === lastCountry2)
-          return alert('Land 2 er allerede hentet. Vælg et nyt Land 2 eller skift Land 1.');
-      }
+        return batches;
     };
 
-    // --- OPDATERET "GENERER OPGAVE" MED DYNAMISKE FOKUSPUNKTER ---
+    $('btnFetch').onclick = async () => {
+        const c1 = $('country1').value;
+        const c2 = $('country2').value; // Gemmes til evt. senere brug
+        if (!c1) return alert('Vælg et land 1');
+
+        $('tableContainer').textContent = 'Henter data...';
+        ['btnGenerate','btnExcel','btnGraphs','themeSelect','btnGenerateTheme','btnDownloadThemeWord'].forEach(id => $(id).disabled = true);
+        $('assignmentContainer').textContent = '';
+        $('graphSection').style.display = 'none';
+
+        // Nulstil data for ny hentning
+        years = []; 
+        data1 = { dataMap: {} };
+        indicators.forEach(ind => { data1.dataMap[ind.codes[0]] = {}; });
+        lastCountry1 = c1;
+        data2 = null; lastCountry2 = null;
+
+        const caption1 = document.createElement('h2');
+        caption1.textContent = countries.find(c => c.code === c1).name;
+        
+        const indicatorBatches = createBatches(indicators, 4); // Opdel i grupper af 4
+        let hasFailed = false;
+
+        for (const batch of indicatorBatches) {
+            if (hasFailed) break;
+            
+            const batchCodes = batch.flatMap(i => i.codes).join('+');
+            const url = apiBase + flow + `${c1}.${batchCodes}.A` + params;
+
+            try {
+                const resp = await fetch(proxyUrl + encodeURIComponent(url));
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                
+                const rawJson = await resp.json();
+                const parsedBatch = parseData(rawJson);
+
+                // Flet resultater fra dette batch ind i det samlede dataobjekt
+                Object.keys(parsedBatch.dataMap).forEach(key => {
+                    const primaryIndicator = indicators.find(i => i.codes[0] === key);
+                    if(primaryIndicator) {
+                       Object.assign(data1.dataMap[key], parsedBatch.dataMap[key]);
+                    }
+                });
+
+            } catch (err) {
+                console.error(`Fejl ved hentning af batch: ${batch.map(i=>i.name).join(', ')}`, err);
+                hasFailed = true;
+            }
+            
+            await delay(1000); // Vent 1 sekund før næste batch
+        }
+
+        if (hasFailed) {
+            $('tableContainer').textContent = 'En eller flere forespørgsler fejlede. Tjek konsollen (F12) for detaljer og prøv igen.';
+            return;
+        }
+
+        $('tableContainer').innerHTML = '';
+        const finalTable = buildSingleTable(data1);
+        $('tableContainer').append(caption1, finalTable);
+        
+        graphMap = data1.dataMap;
+        ['btnGenerate','btnExcel','btnGraphs','themeSelect'].forEach(id => $(id).disabled = false);
+        updateThemeOptions(data1.dataMap);
+        
+        // Simpel håndtering af Land 2 - kan udbygges med batch-logik hvis nødvendigt
+        if (c2) {
+            $('tableContainer').append(document.createElement('hr'), 'Henter data for Land 2...');
+            const allCodes = indicators.flatMap(i => i.codes).join('+');
+            const url2 = apiBase + flow + `${c2}.${allCodes}.A` + params;
+            try {
+                const raw2 = await fetch(proxyUrl + encodeURIComponent(url2)).then(r => r.json());
+                data2 = parseData(raw2);
+                lastCountry2 = c2;
+                const finalCompTable = buildComparisonTable(data1, data2, c1, c2);
+                const captionComp = document.createElement('h2');
+                captionComp.textContent = `Sammenligning: ${countries.find(c=>c.code===c1).name} vs. ${countries.find(c=>c.code===c2).name}`;
+                $('tableContainer').innerHTML = '';
+                $('tableContainer').append(captionComp, finalCompTable);
+            } catch(err) {
+                 $('tableContainer').append(document.createElement('br'), `Fejl ved hentning/parsing Land 2: ${err.message}`);
+            }
+        }
+    };
+
+    // --- ALLE ANDRE EVENT LISTENERS ---
     $('btnGenerate').onclick = () => {
         if (!data1) return alert('Hent data for Land 1 først');
         const code = lastCountry1;
@@ -760,12 +797,10 @@ caption1.textContent = countries.find(c => c.code === c1).name;
 
         const overordnet = describeProblem(p0, data1.dataMap, code);
         
-        // Hent dynamiske fokusområder
         const focusPoints = considerations(data1.dataMap, code);
-        let bullet1 = focusPoints[0] || 'Konkurrenceevnen'; // Standardværdi hvis ingen findes
-        let bullet2 = focusPoints[1] || 'Levestandarden';   // Standardværdi hvis kun én eller færre findes
+        let bullet1 = focusPoints[0] || 'Konkurrenceevnen';
+        let bullet2 = focusPoints[1] || 'Levestandarden';
 
-        // Sørg for at de to punkter ikke er identiske, hvis der kun er ét dynamisk punkt
         if (bullet1 === bullet2 && focusPoints.length < 2) {
            bullet2 = (bullet1 === 'Konkurrenceevnen') ? 'Levestandarden' : 'Konkurrenceevnen';
         }
