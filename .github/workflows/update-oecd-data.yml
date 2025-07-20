@@ -1,0 +1,44 @@
+# Navnet på din automatiske opgave
+name: Update OECD Data
+
+# Hvornår skal opgaven køre?
+on:
+  # Kør hver nat kl. 02:15 UTC (04:15 dansk sommertid)
+  schedule:
+    - cron: '15 2 * * *'
+  # Tillad manuel kørsel fra GitHub's Actions-fane
+  workflow_dispatch:
+
+jobs:
+  update-data:
+    # Kør denne opgave på en frisk Ubuntu-server
+    runs-on: ubuntu-latest
+
+    steps:
+      # Trin 1: Hent den seneste version af din kode
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Trin 2: Sæt Node.js op, så vi kan køre vores script
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      # Trin 3: Installer de nødvendige værktøjer (node-fetch)
+      - name: Install dependencies
+        run: npm install
+
+      # Trin 4: Kør selve data-hentnings-scriptet
+      - name: Run data fetch script
+        run: npm start
+
+      # Trin 5: Tjek for ændringer og gem dem tilbage til dit repository
+      - name: Commit and push if data changed
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'AUTOMATISK: Opdateret OECD datafil'
+          file_pattern: 'oecd-data.json'
+          commit_user_name: 'OECD Data Bot'
+          commit_user_email: 'actions@github.com'
+          commit_author: 'OECD Data Bot <actions@github.com>'
