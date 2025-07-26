@@ -20,6 +20,101 @@
     canvas#chart { max-width: 700px; max-height: 400px; width: 100%; height: auto; margin-top: 1rem; }
     .api-citation { position: fixed; bottom: 1rem; left: 1rem; font-size: .8rem; color: #555; max-width: 40%; text-align: left; }
     .footer-copyright { position: fixed; bottom: 1rem; right: 1rem; font-size: .8rem; color: #555; }
+
+    /* Modal specific styles */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0,0,0,0.4);
+        justify-content: center;
+        align-items: center;
+    }
+    .modal-content {
+        background-color: #fefefe;
+        margin: auto;
+        padding: 20px;
+        border: 1px solid #888;
+        width: 80%;
+        max-width: 600px;
+        box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);
+        animation-name: animatetop;
+        animation-duration: 0.4s;
+        display: flex;
+        flex-direction: column;
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+    .modal-header h2 {
+        margin: 0;
+        font-size: 1.2rem;
+    }
+    .close-button {
+        color: #aaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .close-button:hover,
+    .close-button:focus {
+        color: black;
+        text-decoration: none;
+        cursor: pointer;
+    }
+    .modal-body {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 10px;
+        max-height: 400px; /* Limit height for scrollability */
+        overflow-y: auto; /* Enable scrolling */
+        padding-right: 10px; /* Space for scrollbar */
+    }
+    .modal-body label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+    }
+    .modal-body input[type="checkbox"] {
+        margin: 0;
+        cursor: pointer;
+    }
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        border-top: 1px solid #ddd;
+        padding-top: 10px;
+        margin-top: 15px;
+    }
+    .modal-controls {
+        display: flex;
+        justify-content: flex-start;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+
+    /* Animation */
+    @-webkit-keyframes animatetop {
+        from {top:-300px; opacity:0}
+        to {top:0; opacity:1}
+    }
+    @keyframes animatetop {
+        from {top:-300px; opacity:0}
+        to {top:0; opacity:1}
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -44,7 +139,7 @@
       </label>
 
       <button id="btnFetch">Hent data</button>
-      <button id="btnGenerate" disabled>Generer opgave (Land 1)</button>
+      <button id="btnSelectYears">Vælg År</button> <button id="btnGenerate" disabled>Generer opgave (Land 1)</button>
       <button id="btnExcel" disabled>Download Excel (Land 1)</button>
       <button id="btnGraphs" disabled>Lav grafer (Land 1)</button>
     </div>
@@ -87,6 +182,24 @@
   <div class="api-citation" id="apiCitation"></div>
   <div class="footer-copyright">
     © Allan Baisgaard, Aalborg Handelsgymnasie Turøgade
+  </div>
+
+  <div id="yearModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Vælg År</h2>
+        <span class="close-button">&times;</span>
+      </div>
+      <div class="modal-controls">
+        <button id="selectAllYears">Vælg alle</button>
+        <button id="deselectAllYears">Fravælg alle</button>
+      </div>
+      <div id="yearCheckboxes" class="modal-body">
+        </div>
+      <div class="modal-footer">
+        <button id="okYearSelection">OK</button>
+      </div>
+    </div>
   </div>
 
 <script>
@@ -142,6 +255,9 @@
   let data1 = null, data2 = null, years = [], graphMap = null,
       graphYears = [], graphChart = null, lastCountry1 = null,
       lastCountry2 = null, generateIndex = 0;
+  
+  // New global variable for selected display years in the main table
+  let selectedDisplayYears = []; 
 
   function populateCountries() {
     const sel1 = $('country1'), sel2 = $('country2');
@@ -181,20 +297,22 @@
   }
 
 
-  function buildSingleTable(parsed) {
+  function buildSingleTable(parsedData) {
     const tbl = document.createElement('table');
     const thead = tbl.createTHead();
     const header = thead.insertRow();
     header.insertCell().textContent = 'Nøgletal \\ År';
-    // Brug parsed.years, da dette er de faktiske år der er data for
-    parsed.years.forEach(y => header.insertCell().textContent = y);
+    
+    // Use selectedDisplayYears if available, otherwise all years from parsedData
+    const yearsToDisplay = selectedDisplayYears.length > 0 ? selectedDisplayYears : parsedData.years;
+
+    yearsToDisplay.forEach(y => header.insertCell().textContent = y);
     const tbody = tbl.createTBody();
     indicators.forEach(ind => {
       const row = tbody.insertRow();
       row.insertCell().textContent = ind.name;
-      parsed.years.forEach(y => {
-        // Bemærk: Her bruger vi ind.codes[0] da dataMap er bygget med den primære kode som nøgle
-        const v = parsed.dataMap[ind.codes[0]] ? parsed.dataMap[ind.codes[0]][y] : null;
+      yearsToDisplay.forEach(y => {
+        const v = parsedData.dataMap[ind.codes[0]] ? parsedData.dataMap[ind.codes[0]][y] : null;
         row.insertCell().textContent = v != null ? v.toFixed(2).replace('.',',') : '–';
       });
     });
@@ -206,13 +324,17 @@
     const thead = tbl.createTHead();
     const row1 = thead.insertRow();
     row1.insertCell().textContent = 'Nøgletal \\ År';
-    parsed1.years.forEach(y => { // Brug år fra parsed1, de burde være de samme for begge
+    
+    // Use selectedDisplayYears if available, otherwise all years from parsed1
+    const yearsToDisplay = selectedDisplayYears.length > 0 ? selectedDisplayYears : parsed1.years;
+
+    yearsToDisplay.forEach(y => {
       const th = row1.insertCell();
       th.colSpan = 2; th.textContent = y;
     });
     const row2 = thead.insertRow();
     row2.insertCell();
-    parsed1.years.forEach(_ => {
+    yearsToDisplay.forEach(_ => {
       row2.insertCell().textContent = code1;
       row2.insertCell().textContent = code2;
     });
@@ -220,7 +342,7 @@
     indicators.forEach(ind => {
       const row = tbody.insertRow();
       row.insertCell().textContent = ind.name;
-      parsed1.years.forEach(y => { // Brug år fra parsed1
+      yearsToDisplay.forEach(y => {
         const v1 = parsed1.dataMap[ind.codes[0]] ? parsed1.dataMap[ind.codes[0]][y] : null;
         row.insertCell().textContent = v1 != null ? v1.toFixed(2).replace('.',',') : '–';
         const v2 = parsed2.dataMap[ind.codes[0]] ? parsed2.dataMap[ind.codes[0]][y] : null;
@@ -339,7 +461,7 @@
         const g1 = dataMap['GDPV_ANNPCT'] ? formatVal(dataMap['GDPV_ANNPCT'][last3[0]]) : 'N/A';
         const g2 = dataMap['GDPV_ANNPCT'] ? formatVal(dataMap['GDPV_ANNPCT'][last3[1]]) : 'N/A';
         const g3 = dataMap['GDPV_ANNPCT'] ? formatVal(dataMap['GDPV_ANNPCT'][last3[2]]) : 'N/A';
-        s = `${landName} har oplevet vækstrater på under 1 % i tre år i træk (${last3[0]}: ${g1} %, ${last3[1]}: ${g2} %, ${last3[2]}: ${g3} %), derfor er der behov for at kickstarte landets økonomi.`;
+        s = `${landName} har oplevet vækstrater på under 1 % i tre år i træk (${last3[0]}: ${g1} %, ${last3[1]}: ${g2} %, ${last3[2]}: ${g3} %), derfor er there behov for at kickstarte landets økonomi.`;
     } else if (p0.includes('mulig overophedning')) {
         const last3 = years.filter(y => y <= currentEndYear).slice(-3); // Filtrer år før slice
         const g1 = dataMap['GDPV_ANNPCT'] ? formatVal(dataMap['GDPV_ANNPCT'][last3[0]]) : 'N/A';
@@ -352,10 +474,13 @@
 
   function downloadExcel() {
     if (!data1) return;
-    const aoa = [['Nøgletal \\ År', ...data1.years]]; // Brug årstal fra den hentede data
+    // Use selectedDisplayYears for Excel download if available, otherwise all years
+    const yearsToExport = selectedDisplayYears.length > 0 ? selectedDisplayYears : data1.years;
+
+    const aoa = [['Nøgletal \\ År', ...yearsToExport]]; 
     indicators.forEach(ind => {
       const row = [ind.name];
-      data1.years.forEach(y => {
+      yearsToExport.forEach(y => {
         const v = data1.dataMap[ind.codes[0]] ? data1.dataMap[ind.codes[0]][y] : null;
         row.push(v != null ? v.toFixed(2).replace('.',',') : '');
       });
@@ -620,7 +745,7 @@ Den økonomiske situation er skitseret her for det nyeste år: [BNP_VÆKST_PCT],
 Foretage en kommentering af den økonomiske udvikling i [LANDE_NAVN] i det seneste år.
 Inddrag relevante konjunkturbegreber, samfundsøkonomiske mål og procentpointmæssige ændringer.
 Opstil efterspørgselskomponenterne med en passende overskrift.
-Dernæst bedes du kommentere på, hvorvidt efterspørgselskomponenten bidrager/ikke bidrager til den økonomiske udvikling i det seneste år.
+Dernæst bedes du kommentere på, hvorvidt efterspørgselskomponenterne bidrager/ikke bidrager til den økonomiske udvikling i det seneste år.
 Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på den procentvise udvikling i Privat forbruget, offentligt forbrug, Offentlige investeringer og eksporten.
 `;
                 break;
@@ -742,7 +867,6 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
     // Citation opdateres til at afspejle den lokale datakilde
     $('apiCitation').textContent = `Data kilde: OECD Data (hentet fra .csv fil) . Nyeste år: Varierer med data.`;
 
-
     $('btnFetch').onclick = async () => {
       const c1 = $('country1').value;
       const c2 = $('country2').value;
@@ -763,11 +887,14 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
         lastCountry1 = c1;
         years = data1.years; // Sæt de globale årstal baseret på Land 1's data
         
-        $('tableContainer').textContent = '';
-        const tbl1 = buildSingleTable(data1);
-        const caption1 = document.createElement('h2');
-        caption1.textContent = countries.find(c => c.code === c1).name;
-        $('tableContainer').append(caption1, tbl1);
+        // --- START OF MODIFIED SECTION ---
+        // Default selection: 2015-2024 for main table display
+        selectedDisplayYears = data1.years.filter(year => year >= 2015 && year <= 2024);
+        selectedDisplayYears.sort((a, b) => a - b); // Ensure years are sorted
+        // --- END OF MODIFIED SECTION ---
+
+        renderTables(); // Initial rendering of tables with default 2015-2024 years
+
         graphMap = data1.dataMap; 
         graphYears = data1.years; // Opdater graphYears med de faktiske årstal
 
@@ -781,14 +908,10 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
             const raw2 = await fetchLocalData(c2);
             data2 = parseData(raw2);
             lastCountry2 = c2;
-            const country1Name = countries.find(c => c.code === c1).name;
-            const country2Name = countries.find(c => c.code === c2).name;
-            const compTable = buildComparisonTable(data1, data2, c1, c2);
-            const captionComp = document.createElement('h2');
-            captionComp.textContent = `Sammenligning: ${country1Name} vs. ${country2Name}`;
-            $('tableContainer').append(captionComp, compTable);
+            renderTables(); // Re-render to include comparison table
         } else {
             data2 = null; lastCountry2 = null; // Nulstil land 2 data hvis ikke valgt eller samme som land 1
+            renderTables(); // Re-render to clear comparison table
         }
       } catch(err) {
         console.error(err);
@@ -796,6 +919,108 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
         data1 = null; data2 = null;
       }
     };
+
+    // Function to render/re-render the main tables
+    function renderTables() {
+        $('tableContainer').innerHTML = ''; // Clear existing tables
+        if (data1) {
+            const country1Name = countries.find(c => c.code === lastCountry1).name;
+            const tbl1 = buildSingleTable(data1);
+            const caption1 = document.createElement('h2');
+            caption1.textContent = country1Name;
+            $('tableContainer').append(caption1, tbl1);
+
+            if (data2 && lastCountry2 && lastCountry2 !== lastCountry1) {
+                const country2Name = countries.find(c => c.code === lastCountry2).name;
+                const compTable = buildComparisonTable(data1, data2, lastCountry1, lastCountry2);
+                const captionComp = document.createElement('h2');
+                captionComp.textContent = `Sammenligning: ${country1Name} vs. ${country2Name}`;
+                $('tableContainer').append(captionComp, compTable);
+            }
+        }
+    }
+
+
+    // --- YEAR SELECTION MODAL LOGIC ---
+    const yearModal = $('yearModal');
+    const closeButton = yearModal.querySelector('.close-button');
+    const selectAllYearsBtn = $('selectAllYears');
+    const deselectAllYearsBtn = $('deselectAllYears');
+    const okYearSelectionBtn = $('okYearSelection');
+    const yearCheckboxesContainer = $('yearCheckboxes');
+
+    $('btnSelectYears').onclick = () => {
+        if (!data1) {
+            alert('Hent data for Land 1 først for at vælge år.');
+            return;
+        }
+        
+        yearCheckboxesContainer.innerHTML = ''; // Clear previous checkboxes
+        const availableYears = data1.years; // Use years from the fetched data
+
+        availableYears.forEach(year => {
+            const label = document.createElement('label');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = year;
+            checkbox.id = `year-${year}`;
+
+            // Default selection in modal always from 2014-2024 as previously requested
+            // This is separate from the *initial display* after fetch
+            if (year >= 2014 && year <= 2024) {
+                checkbox.checked = true;
+            }
+            // If selectedDisplayYears is already populated by a previous user choice, it overrides the default
+            if (selectedDisplayYears.length > 0) {
+                checkbox.checked = selectedDisplayYears.includes(year);
+            }
+
+            label.appendChild(checkbox);
+            label.append(year);
+            yearCheckboxesContainer.appendChild(label);
+        });
+
+        yearModal.style.display = 'flex'; // Show the modal
+    };
+
+    closeButton.onclick = () => {
+        yearModal.style.display = 'none'; // Hide the modal
+    };
+
+    selectAllYearsBtn.onclick = () => {
+        Array.from(yearCheckboxesContainer.querySelectorAll('input[type="checkbox"]')).forEach(checkbox => {
+            checkbox.checked = true;
+        });
+    };
+
+    deselectAllYearsBtn.onclick = () => {
+        Array.from(yearCheckboxesContainer.querySelectorAll('input[type="checkbox"]')).forEach(checkbox => {
+            checkbox.checked = false;
+        });
+    };
+
+    okYearSelectionBtn.onclick = () => {
+        selectedDisplayYears = [];
+        Array.from(yearCheckboxesContainer.querySelectorAll('input[type="checkbox"]:checked')).forEach(checkbox => {
+            selectedDisplayYears.push(parseInt(checkbox.value));
+        });
+        
+        // Sort the years for consistent display
+        selectedDisplayYears.sort((a, b) => a - b);
+
+        yearModal.style.display = 'none'; // Hide the modal
+
+        // Re-render the tables with the newly selected years
+        renderTables(); 
+    };
+
+    // Close modal if user clicks outside of it
+    window.onclick = (event) => {
+        if (event.target == yearModal) {
+            yearModal.style.display = 'none';
+        }
+    };
+
 
     // --- OPDATERET "GENERER OPGAVE" MED DYNAMISKE FOKUSPUNKTER ---
     $('btnGenerate').onclick = () => {
