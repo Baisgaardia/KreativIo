@@ -140,7 +140,7 @@
 
       <button id="btnFetch">Hent data</button>
       <button id="btnSelectYears">Vælg År</button> <button id="btnGenerate" disabled>Generer opgave (Land 1)</button>
-      <button id="btnExcel" disabled>Download Excel (Land 1)</button>
+      <button id="btnDownloadMemo" disabled>Download Notat (Word)</button> <button id="btnExcel" disabled>Download Excel (Land 1)</button>
       <button id="btnGraphs" disabled>Lav grafer (Land 1)</button>
     </div>
     <div class="right-controls">
@@ -879,7 +879,7 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
       $('tableContainer').textContent = 'Henter data…';
       $('assignmentContainer').textContent = '';
       $('graphSection').style.display = 'none';
-      ['btnGenerateTheme','btnDownloadThemeWord','themeSelect','btnGenerate','btnExcel','btnGraphs'].forEach(id => $(id).disabled = true);
+      ['btnGenerateTheme','btnDownloadThemeWord','themeSelect','btnGenerate','btnDownloadMemo','btnExcel','btnGraphs'].forEach(id => $(id).disabled = true);
       
       try {
         const raw1 = await fetchLocalData(c1);
@@ -1031,6 +1031,7 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
         const prList = problems(data1.dataMap);
         if (!prList.length) {
             $('assignmentContainer').innerHTML = 'Ingen specifikke økonomiske ubalancer fundet for Land 1. Vælg evt. en opgave fra Tema-menuen.';
+            $('btnDownloadMemo').disabled = true; // Disable if no memo is generated
             return;
         }
         const idx = generateIndex % prList.length;
@@ -1061,7 +1062,20 @@ Du skal i den forbindelse have fokus på:
 2. ${bullet2}
 
 Bedømmelsen foretages på baggrund af en helhedsvurdering. Der er fokus på din evne til at strukturere notatet og vise, at du kan forholde dig til enten finanspolitikken (to instrumenter med direkte/indirekte effekt), pengepolitik (evt. begrænsninger og instrumenter) eller valutapolitikken (evt. begrænsninger og instrumenter).`.replace(/\n/g, '<br>');
+        $('btnDownloadMemo').disabled = false; // Enable download button after memo is generated
     };
+
+    // NEW FUNCTION FOR DOWNLOADING THE MEMO
+    $('btnDownloadMemo').onclick = () => {
+        const memoContent = $('assignmentContainer').innerHTML;
+        if (!memoContent || memoContent.trim() === 'Ingen specifikke økonomiske ubalancer fundet for Land 1. Vælg evt. en opgave fra Tema-menuen.' || memoContent.trim() === '') {
+            return alert('Generer et notat først.');
+        }
+        const countryName = countries.find(c => c.code === lastCountry1).name;
+        const filename = `OECD_Notat_${countryName}.doc`;
+        downloadHtmlAsWord(filename, memoContent);
+    };
+
 
     $('btnExcel').onclick = downloadExcel;
     $('btnGraphs').onclick = () => {
@@ -1075,6 +1089,8 @@ Bedømmelsen foretages på baggrund af en helhedsvurdering. Der er fokus på din
         const selectedTheme = $('themeSelect').value;
         $('btnGenerateTheme').disabled = !selectedTheme;
         $('btnDownloadThemeWord').disabled = true;
+        // Also disable the memo download button when theme is changed/cleared
+        $('btnDownloadMemo').disabled = true; 
         $('assignmentContainer').textContent = selectedTheme ? '' : 'Vælg venligst et tema for at generere en opgave.';
     };
 
@@ -1086,6 +1102,9 @@ Bedømmelsen foretages på baggrund af en helhedsvurdering. Der er fokus på din
         const generatedContent = generateThemeAssignment(selectedTheme, countryName, data1.dataMap);
         $('assignmentContainer').innerHTML = generatedContent.replace(/\n/g, '<br>');
         $('btnDownloadThemeWord').disabled = false;
+        // Ensure the memo download button is disabled when a theme assignment is generated
+        // (as it's for a different type of output)
+        $('btnDownloadMemo').disabled = true; 
     };
 
     $('btnDownloadThemeWord').onclick = () => {
