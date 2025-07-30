@@ -1,0 +1,177 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start; /* Justeret for at starte øverst */
+    min-height: 100vh;
+    background-color: #f4f4f4;
+    margin: 0; /* Fjern standard margin */
+    padding: 20px; /* Tilføj padding omkring containeren */
+    box-sizing: border-box; /* Inkluder padding i elementets totale bredde/højde */
+}
+
+.container {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    width: 100%;
+    max-width: 800px; /* Lidt bredere for mere plads */
+    box-sizing: border-box;
+}
+
+h1, h2 {
+    color: #333;
+    margin-bottom: 20px;
+}
+
+.input-group {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.input-group label {
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #555;
+}
+
+.input-group select {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 16px;
+    width: 100%;
+    max-width: 300px; /* Begræns bredden af dropdown */
+}
+
+.controls {
+    margin-bottom: 20px;
+}
+
+.controls button {
+    background-color: #007bff;
+    color: white;
+    padding: 12px 25px; /* Lidt større knapper */
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 18px; /* Større skrift */
+    margin: 0 10px;
+    transition: background-color 0.3s ease;
+}
+
+.controls button:hover:not(:disabled) {
+    background-color: #0056b3;
+}
+
+.controls button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+.recording-info {
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px; /* Mellemrum mellem dot og timer */
+    min-height: 24px; /* Sikrer at pladsen altid er der */
+}
+
+.recording-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: transparent; /* Standard: ingen farve */
+    transition: background-color 0.3s ease;
+}
+
+.recording-dot.active {
+    background-color: red;
+    box-shadow: 0 0 8px red; /* Lidt glød */
+}
+
+#recordingTimer {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #333;
+}
+
+.video-preview {
+    margin-top: 30px;
+}
+
+#videoPlayback {
+    width: 100%;
+    max-width: 700px; /* Øget maks bredde */
+    height: auto;
+    min-height: 200px; /* Minimum højde for at give plads */
+    border: 1px solid #ddd;
+    background-color: #000;
+    margin-top: 15px;
+    display: block; /* Sørg for at den opfører sig som en blok */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.download-section {
+    margin-top: 30px;
+    border-top: 1px solid #eee;
+    padding-top: 20px;
+}
+
+#statusMessage {
+    color: #d9534f; /* Rød for fejl, standard for meddelelser */
+    font-style: italic;
+    min-height: 20px; /* Sikrer at der altid er plads til beskeder */
+    margin-bottom: 10px;
+}
+
+#downloadVideo {
+    display: inline-block;
+    background-color: #28a745;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    text-decoration: none;
+    margin-top: 15px;
+    transition: background-color 0.3s ease;
+}
+
+#downloadVideo:hover {
+    background-color: #218838;
+}
+
+/* Responsivt Design */
+@media (max-width: 768px) {
+    .container {
+        padding: 20px;
+        margin: 10px;
+    }
+    .controls button {
+        padding: 10px 20px;
+        font-size: 16px;
+        margin-bottom: 10px; /* Plads mellem knapper på små skærme */
+    }
+    .input-group select {
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    h1 {
+        font-size: 1.8em;
+    }
+    h2 {
+        font-size: 1.4em;
+    }
+    .controls button {
+        width: 100%;
+        margin: 5px 0;
+    }
+}

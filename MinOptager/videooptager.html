@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avanceret Skærm- og Lydoptager</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Avanceret Skærm- og Lydoptager</h1>
+
+        <div class="input-group">
+            <label for="audioSource">Vælg Lydkilde:</label>
+            <select id="audioSource">
+                <option value="system">Kun Skærmlyd (System Audio)</option>
+                <option value="microphone">Kun Mikrofon</option>
+                <option value="both">Skærmlyd & Mikrofon</option>
+                <option value="none">Ingen Lyd</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label for="videoQuality">Vælg Video Kvalitet:</label>
+            <select id="videoQuality">
+                <option value="high">Høj Kvalitet (Større fil)</option>
+                <option value="medium" selected>Mellem Kvalitet (Anbefalet)</option>
+                <option value="low">Lav Kvalitet (Mindre fil)</option>
+            </select>
+        </div>
+
+        <div class="controls">
+            <button id="startRecording">Start Optagelse</button>
+            <button id="stopRecording" disabled>Stop Optagelse</button>
+        </div>
+
+        <div class="recording-info">
+            <span id="recordingIndicator" class="recording-dot"></span>
+            <span id="recordingTimer">00:00:00</span>
+        </div>
+
+        <div class="video-preview">
+            <h2>Forhåndsvisning</h2>
+            <video id="videoPlayback" controls autoplay muted></video>
+        </div>
+
+        <div class="download-section">
+            <h2>Download Din Optagelse</h2>
+            <p id="statusMessage"></p>
+            <a id="downloadVideo" style="display:none;" download="min-optagelse.mp4">Download Video</a>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
