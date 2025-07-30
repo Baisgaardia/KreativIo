@@ -5,13 +5,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadLink = document.getElementById('downloadVideo');
     const statusMessage = document.getElementById('statusMessage');
     const audioSourceSelect = document.getElementById('audioSource');
+    const videoQualitySelect = document.getElementById('videoQuality'); // Ny reference
     const recordingIndicator = document.getElementById('recordingIndicator');
     const recordingTimer = document.getElementById('recordingTimer');
 
     let mediaRecorder;
     let recordedChunks = [];
-    let displayStream; // Stream fra skærmdeling
-    let microphoneStream; // Stream fra mikrofon
+    let displayStream;
+    let microphoneStream;
     let timerInterval;
     let startTime;
 
@@ -36,14 +37,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Funktion til at starte optagelse
     startButton.addEventListener('click', async () => {
         statusMessage.textContent = 'Anmoder om adgang...';
-        statusMessage.style.color = '#555'; // Standardfarve
+        statusMessage.style.color = '#555';
         recordedChunks = [];
         stopButton.disabled = false;
         startButton.disabled = true;
         downloadLink.style.display = 'none';
-        videoPlayback.src = ''; // Ryd forrige video
+        videoPlayback.src = '';
 
         const selectedAudioSource = audioSourceSelect.value;
+        const selectedVideoQuality = videoQualitySelect.value; // Hent valgt kvalitet
+
         let combinedStream;
         let videoTrack;
         let audioTracks = [];
@@ -71,10 +74,31 @@ document.addEventListener('DOMContentLoaded', () => {
             // Kombiner streams
             combinedStream = new MediaStream([videoTrack, ...audioTracks]);
 
-            // Vælg det bedste understøttede mimeType for MP4 eller WebM
+            // Vælg mimeType og bitrate baseret på kvalitet
             let mimeType = 'video/mp4; codecs=avc1.424028,mp4a.40.2'; // Standard MP4
+            let videoBitsPerSecond;
+
+            // Indstil bitrate baseret på valgt kvalitet
+            switch (selectedVideoQuality) {
+                case 'high':
+                    // Eksempel: 4 Mbps (4,000,000 bits per sekund) - god til detaljerede skærmoptagelser
+                    videoBitsPerSecond = 4000000;
+                    break;
+                case 'medium':
+                    // Eksempel: 2 Mbps (2,000,000 bits per sekund) - et godt kompromis
+                    videoBitsPerSecond = 2000000;
+                    break;
+                case 'low':
+                    // Eksempel: 800 Kbps (800,000 bits per sekund) - mindre fil, lavere kvalitet
+                    videoBitsPerSecond = 800000;
+                    break;
+                default:
+                    videoBitsPerSecond = 2000000; // Standard til medium
+            }
+
+            // Tjek understøttelse og fallback
             if (!MediaRecorder.isTypeSupported(mimeType)) {
-                console.warn(`MP4 med H.264 er ikke understøttet. Prøver WebM.`);
+                console.warn(`${mimeType} er ikke understøttet. Prøver WebM.`);
                 mimeType = 'video/webm; codecs=vp8,opus'; // Fallback til WebM
                 if (!MediaRecorder.isTypeSupported(mimeType)) {
                     console.error('Ingen understøttet videoformat fundet for optagelse.');
@@ -87,10 +111,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
             }
+
+            // Opret MediaRecorder med den valgte bitrate
+            mediaRecorder = new MediaRecorder(combinedStream, {
+                mimeType: mimeType,
+                videoBitsPerSecond: videoBitsPerSecond // Anvend den valgte bitrate
+            });
+
             downloadLink.download = `skærmoptagelse_${new Date().toISOString().slice(0, 19).replace(/[:T-]/g, '')}.${mimeType.includes('mp4') ? 'mp4' : 'webm'}`;
 
-
-            mediaRecorder = new MediaRecorder(combinedStream, { mimeType: mimeType });
 
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
@@ -105,14 +134,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 downloadLink.href = url;
                 downloadLink.style.display = 'block';
                 statusMessage.textContent = 'Optagelse er klar til download og afspilning.';
-                statusMessage.style.color = '#28a745'; // Grøn for succes
+                statusMessage.style.color = '#28a745';
 
-                // Stop timer og indikator
                 clearInterval(timerInterval);
                 recordingTimer.textContent = '00:00:00';
                 recordingIndicator.classList.remove('active');
 
-                // Stop alle tracks for at frigive ressourcer
                 stopStreamTracks(displayStream);
                 stopStreamTracks(microphoneStream);
             };
@@ -134,12 +161,10 @@ document.addEventListener('DOMContentLoaded', () => {
             statusMessage.textContent = 'Optager... Klik på "Stop Optagelse" for at afslutte.';
             statusMessage.style.color = '#007bff';
 
-            // Start timer og indikator
             startTime = Date.now();
             timerInterval = setInterval(updateTimer, 1000);
             recordingIndicator.classList.add('active');
 
-            // Lyt efter når brugeren manuelt stopper skærmdelingen via browserens UI
             if (videoTrack) {
                 videoTrack.addEventListener('ended', () => {
                     if (mediaRecorder && mediaRecorder.state === 'recording') {
@@ -161,12 +186,11 @@ document.addEventListener('DOMContentLoaded', () => {
             clearInterval(timerInterval);
             recordingTimer.textContent = '00:00:00';
             recordingIndicator.classList.remove('active');
-            stopStreamTracks(displayStream); // Sørg for at stoppe streams, selv ved fejl i opstart
+            stopStreamTracks(displayStream);
             stopStreamTracks(microphoneStream);
         }
     });
 
-    // Funktion til at stoppe optagelse
     stopButton.addEventListener('click', () => {
         if (mediaRecorder && mediaRecorder.state === 'recording') {
             mediaRecorder.stop();
@@ -179,6 +203,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Første initialisering af timer display
     recordingTimer.textContent = '00:00:00';
 });
