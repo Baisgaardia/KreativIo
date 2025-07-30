@@ -3,54 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Avanceret Skærm- og Lydoptager</title>
+    <title>Skærmoptager</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Avanceret Skærm- og Lydoptager</h1>
-
-        <div class="input-group">
-            <label for="audioSource">Vælg Lydkilde:</label>
-            <select id="audioSource">
-                <option value="system">Kun Skærmlyd (System Audio)</option>
-                <option value="microphone">Kun Mikrofon</option>
-                <option value="both">Skærmlyd & Mikrofon</option>
-                <option value="none">Ingen Lyd</option>
-            </select>
+        <h1>Skab din video</h1>
+        <div class="options">
+            <button id="screenOption" class="option-btn active">
+                <i class="icon-monitor"></i> Skærm
+            </button>
+            <button id="webcamOption" class="option-btn">
+                <i class="icon-camera"></i> Webcam
+            </button>
+            <button id="micOption" class="option-btn">
+                <i class="icon-mic"></i> Mikrofon
+            </button>
         </div>
-
-        <div class="input-group">
-            <label for="videoQuality">Vælg Video Kvalitet:</label>
-            <select id="videoQuality">
-                <option value="high">Høj Kvalitet (Større fil)</option>
-                <option value="medium" selected>Mellem Kvalitet (Anbefalet)</option>
-                <option value="low">Lav Kvalitet (Mindre fil)</option>
-            </select>
+        <div class="status-box" id="status">Vælg dine indstillinger og start optagelsen.</div>
+        <button id="startButton" class="action-btn">Start Optagelse</button>
+        <button id="stopButton" class="action-btn hidden">Stop Optagelse</button>
+        
+        <div class="video-preview-container">
+            <video id="webcamPreview" class="webcam-preview hidden" autoplay muted></video>
+            <video id="finalVideo" controls class="final-video hidden"></video>
         </div>
-
-        <div class="controls">
-            <button id="startRecording">Start Optagelse</button>
-            <button id="stopRecording" disabled>Stop Optagelse</button>
-        </div>
-
-        <div class="recording-info">
-            <span id="recordingIndicator" class="recording-dot"></span>
-            <span id="recordingTimer">00:00:00</span>
-        </div>
-
-        <div class="video-preview">
-            <h2>Forhåndsvisning</h2>
-            <video id="videoPlayback" controls autoplay muted></video>
-        </div>
-
-        <div class="download-section">
-            <h2>Download Din Optagelse</h2>
-            <p id="statusMessage"></p>
-            <a id="downloadVideo" style="display:none;" download="min-optagelse.mp4">Download Video</a>
+        
+        <div class="download-share-container hidden">
+            <a id="downloadLink" class="action-btn download-btn">Download .mp4</a>
+            <button id="shareButton" class="action-btn share-btn">Del</button>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="ffmpeg.js"></script> <script src="script.js"></script>
 </body>
 </html>

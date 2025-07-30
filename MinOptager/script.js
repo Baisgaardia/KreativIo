@@ -1,207 +1,212 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const startButton = document.getElementById('startRecording');
-    const stopButton = document.getElementById('stopRecording');
-    const videoPlayback = document.getElementById('videoPlayback');
-    const downloadLink = document.getElementById('downloadVideo');
-    const statusMessage = document.getElementById('statusMessage');
-    const audioSourceSelect = document.getElementById('audioSource');
-    const videoQualitySelect = document.getElementById('videoQuality'); // Ny reference
-    const recordingIndicator = document.getElementById('recordingIndicator');
-    const recordingTimer = document.getElementById('recordingTimer');
+// --- Initialisering og UI-håndtering ---
+const screenOption = document.getElementById('screenOption');
+const webcamOption = document.getElementById('webcamOption');
+const micOption = document.getElementById('micOption');
+const startButton = document.getElementById('startButton');
+const stopButton = document.getElementById('stopButton');
+const statusDiv = document.getElementById('status');
+const webcamPreview = document.getElementById('webcamPreview');
+const finalVideo = document.getElementById('finalVideo');
+const downloadLink = document.getElementById('downloadLink');
+const shareButton = document.getElementById('shareButton');
+const downloadShareContainer = document.querySelector('.download-share-container');
 
-    let mediaRecorder;
-    let recordedChunks = [];
-    let displayStream;
-    let microphoneStream;
-    let timerInterval;
-    let startTime;
+let mediaRecorder;
+let recordedChunks = [];
+let screenStream;
+let webcamStream;
+let micStream;
+let finalBlob;
 
-    // Funktion til at opdatere timeren
-    function updateTimer() {
-        const elapsedTime = Date.now() - startTime;
-        const hours = Math.floor(elapsedTime / 3600000);
-        const minutes = Math.floor((elapsedTime % 3600000) / 60000);
-        const seconds = Math.floor((elapsedTime % 60000) / 1000);
+// Toggle aktive knapper
+[screenOption, webcamOption, micOption].forEach(btn => {
+    btn.addEventListener('click', async () => {
+        btn.classList.toggle('active');
 
-        const format = (num) => String(num).padStart(2, '0');
-        recordingTimer.textContent = `${format(hours)}:${format(minutes)}:${format(seconds)}`;
-    }
-
-    // Funktion til at stoppe alle tracks i en stream
-    function stopStreamTracks(stream) {
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
+        // Håndter forhåndsvisning for webcam
+        if (btn.id === 'webcamOption') {
+            await handleWebcamPreview(btn.classList.contains('active'));
         }
-    }
 
-    // Funktion til at starte optagelse
-    startButton.addEventListener('click', async () => {
-        statusMessage.textContent = 'Anmoder om adgang...';
-        statusMessage.style.color = '#555';
-        recordedChunks = [];
-        stopButton.disabled = false;
-        startButton.disabled = true;
-        downloadLink.style.display = 'none';
-        videoPlayback.src = '';
+        // Håndter mikrofonanmodning
+        if (btn.id === 'micOption') {
+            await handleMicRequest(btn.classList.contains('active'));
+        }
+    });
+});
 
-        const selectedAudioSource = audioSourceSelect.value;
-        const selectedVideoQuality = videoQualitySelect.value; // Hent valgt kvalitet
-
-        let combinedStream;
-        let videoTrack;
-        let audioTracks = [];
-
+async function handleWebcamPreview(shouldShow) {
+    if (shouldShow) {
         try {
-            // Få skærmstream
-            displayStream = await navigator.mediaDevices.getDisplayMedia({
-                video: {
-                    cursor: 'always'
-                },
-                audio: selectedAudioSource === 'system' || selectedAudioSource === 'both'
-            });
-
-            videoTrack = displayStream.getVideoTracks()[0];
-            if (displayStream.getAudioTracks().length > 0) {
-                audioTracks.push(displayStream.getAudioTracks()[0]);
-            }
-
-            // Få mikrofonlyd, hvis valgt
-            if (selectedAudioSource === 'microphone' || selectedAudioSource === 'both') {
-                microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                audioTracks.push(microphoneStream.getAudioTracks()[0]);
-            }
-
-            // Kombiner streams
-            combinedStream = new MediaStream([videoTrack, ...audioTracks]);
-
-            // Vælg mimeType og bitrate baseret på kvalitet
-            let mimeType = 'video/mp4; codecs=avc1.424028,mp4a.40.2'; // Standard MP4
-            let videoBitsPerSecond;
-
-            // Indstil bitrate baseret på valgt kvalitet
-            switch (selectedVideoQuality) {
-                case 'high':
-                    // Eksempel: 4 Mbps (4,000,000 bits per sekund) - god til detaljerede skærmoptagelser
-                    videoBitsPerSecond = 4000000;
-                    break;
-                case 'medium':
-                    // Eksempel: 2 Mbps (2,000,000 bits per sekund) - et godt kompromis
-                    videoBitsPerSecond = 2000000;
-                    break;
-                case 'low':
-                    // Eksempel: 800 Kbps (800,000 bits per sekund) - mindre fil, lavere kvalitet
-                    videoBitsPerSecond = 800000;
-                    break;
-                default:
-                    videoBitsPerSecond = 2000000; // Standard til medium
-            }
-
-            // Tjek understøttelse og fallback
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                console.warn(`${mimeType} er ikke understøttet. Prøver WebM.`);
-                mimeType = 'video/webm; codecs=vp8,opus'; // Fallback til WebM
-                if (!MediaRecorder.isTypeSupported(mimeType)) {
-                    console.error('Ingen understøttet videoformat fundet for optagelse.');
-                    statusMessage.textContent = 'Fejl: Din browser understøtter ikke de nødvendige videoformater for optagelse.';
-                    statusMessage.style.color = '#d9534f';
-                    startButton.disabled = false;
-                    stopButton.disabled = true;
-                    stopStreamTracks(displayStream);
-                    stopStreamTracks(microphoneStream);
-                    return;
-                }
-            }
-
-            // Opret MediaRecorder med den valgte bitrate
-            mediaRecorder = new MediaRecorder(combinedStream, {
-                mimeType: mimeType,
-                videoBitsPerSecond: videoBitsPerSecond // Anvend den valgte bitrate
-            });
-
-            downloadLink.download = `skærmoptagelse_${new Date().toISOString().slice(0, 19).replace(/[:T-]/g, '')}.${mimeType.includes('mp4') ? 'mp4' : 'webm'}`;
-
-
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    recordedChunks.push(event.data);
-                }
-            };
-
-            mediaRecorder.onstop = () => {
-                const blob = new Blob(recordedChunks, { type: recordedChunks[0].type });
-                const url = URL.createObjectURL(blob);
-                videoPlayback.src = url;
-                downloadLink.href = url;
-                downloadLink.style.display = 'block';
-                statusMessage.textContent = 'Optagelse er klar til download og afspilning.';
-                statusMessage.style.color = '#28a745';
-
-                clearInterval(timerInterval);
-                recordingTimer.textContent = '00:00:00';
-                recordingIndicator.classList.remove('active');
-
-                stopStreamTracks(displayStream);
-                stopStreamTracks(microphoneStream);
-            };
-
-            mediaRecorder.onerror = (event) => {
-                console.error('MediaRecorder fejl:', event.error);
-                statusMessage.textContent = `Optagefejl: ${event.error.name} - ${event.error.message}`;
-                statusMessage.style.color = '#d9534f';
-                startButton.disabled = false;
-                stopButton.disabled = true;
-                clearInterval(timerInterval);
-                recordingTimer.textContent = '00:00:00';
-                recordingIndicator.classList.remove('active');
-                stopStreamTracks(displayStream);
-                stopStreamTracks(microphoneStream);
-            };
-
-            mediaRecorder.start();
-            statusMessage.textContent = 'Optager... Klik på "Stop Optagelse" for at afslutte.';
-            statusMessage.style.color = '#007bff';
-
-            startTime = Date.now();
-            timerInterval = setInterval(updateTimer, 1000);
-            recordingIndicator.classList.add('active');
-
-            if (videoTrack) {
-                videoTrack.addEventListener('ended', () => {
-                    if (mediaRecorder && mediaRecorder.state === 'recording') {
-                        mediaRecorder.stop();
-                        startButton.disabled = false;
-                        stopButton.disabled = true;
-                        statusMessage.textContent = 'Optagelsen blev stoppet manuelt af brugeren.';
-                        statusMessage.style.color = '#555';
-                    }
-                });
-            }
-
+            webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            webcamPreview.srcObject = webcamStream;
+            webcamPreview.classList.remove('hidden');
         } catch (err) {
-            console.error('Fejl ved adgang til skærm eller mikrofon:', err);
-            statusMessage.textContent = `Fejl: ${err.name} - ${err.message}. Sørg for at give tilladelse til skærmdeling og mikrofon.`;
-            statusMessage.style.color = '#d9534f';
-            startButton.disabled = false;
-            stopButton.disabled = true;
-            clearInterval(timerInterval);
-            recordingTimer.textContent = '00:00:00';
-            recordingIndicator.classList.remove('active');
-            stopStreamTracks(displayStream);
-            stopStreamTracks(microphoneStream);
+            console.error('Kunne ikke få adgang til webcam:', err);
+            statusDiv.textContent = 'Fejl: Kunne ikke få adgang til webcam. Afmarker venligst.';
+            webcamOption.classList.remove('active');
+            webcamStream = null;
         }
-    });
-
-    stopButton.addEventListener('click', () => {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-            mediaRecorder.stop();
-            startButton.disabled = false;
-            stopButton.disabled = true;
-            statusMessage.textContent = 'Behandler optagelse...';
-            statusMessage.style.color = '#555';
-            clearInterval(timerInterval);
-            recordingIndicator.classList.remove('active');
+    } else {
+        if (webcamStream) {
+            webcamStream.getTracks().forEach(track => track.stop());
+            webcamStream = null;
         }
-    });
+        webcamPreview.classList.add('hidden');
+    }
+}
 
-    recordingTimer.textContent = '00:00:00';
+async function handleMicRequest(shouldShow) {
+    if (shouldShow) {
+        try {
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            statusDiv.textContent = 'Mikrofonadgang er godkendt.';
+        } catch (err) {
+            console.error('Kunne ikke få adgang til mikrofon:', err);
+            statusDiv.textContent = 'Fejl: Kunne ikke få adgang til mikrofon. Afmarker venligst.';
+            micOption.classList.remove('active');
+            micStream = null;
+        }
+    } else {
+        if (micStream) {
+            micStream.getTracks().forEach(track => track.stop());
+            micStream = null;
+        }
+    }
+}
+
+// --- Optagelseslogik ---
+startButton.addEventListener('click', async () => {
+    const includeScreen = screenOption.classList.contains('active');
+    const includeWebcam = webcamOption.classList.contains('active');
+    const includeMic = micOption.classList.contains('active');
+
+    if (!includeScreen && !includeWebcam) {
+        statusDiv.textContent = 'Vælg mindst én kilde (skærm eller webcam).';
+        return;
+    }
+    
+    statusDiv.textContent = 'Starter optagelse...';
+    startButton.classList.add('hidden');
+    stopButton.classList.remove('hidden');
+    
+    try {
+        let videoStream = null;
+        let audioContext = new AudioContext();
+        let audioDestination = audioContext.createMediaStreamDestination();
+
+        if (includeScreen) {
+            screenStream = await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: true
+            });
+            videoStream = screenStream;
+            const screenAudioSource = audioContext.createMediaStreamSource(screenStream);
+            screenAudioSource.connect(audioDestination);
+
+            screenStream.getVideoTracks()[0].onended = () => {
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+            };
+        }
+
+        if (includeWebcam) {
+            if (!webcamStream) {
+                webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            }
+            if (includeScreen) {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const screenVideoElement = document.createElement('video');
+                screenVideoElement.srcObject = screenStream;
+                screenVideoElement.play();
+                
+                await new Promise(resolve => screenVideoElement.addEventListener('loadedmetadata', resolve));
+                
+                canvas.width = screenVideoElement.videoWidth;
+                canvas.height = screenVideoElement.videoHeight;
+                
+                function drawFrame() {
+                    ctx.drawImage(screenVideoElement, 0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(webcamPreview, canvas.width - 200, canvas.height - 150, 180, 135);
+                    requestAnimationFrame(drawFrame);
+                }
+                drawFrame();
+                videoStream = canvas.captureStream();
+            } else {
+                videoStream = webcamStream;
+            }
+        }
+        
+        if (includeMic) {
+            if (!micStream) {
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            }
+            const micAudioSource = audioContext.createMediaStreamSource(micStream);
+            micAudioSource.connect(audioDestination);
+        }
+
+        const finalAudioTracks = audioDestination.stream.getAudioTracks();
+        const finalStream = new MediaStream([...videoStream.getVideoTracks(), ...finalAudioTracks]);
+        
+        mediaRecorder = new MediaRecorder(finalStream, { mimeType: 'video/webm' });
+
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) recordedChunks.push(event.data);
+        };
+        
+        mediaRecorder.onstop = async () => {
+            statusDiv.textContent = 'Optagelse færdig. Konverterer til MP4...';
+            const webmBlob = new Blob(recordedChunks, { type: 'video/webm' });
+
+            const mp4Blob = await convertWebMtoMP4(webmBlob);
+            
+            finalBlob = mp4Blob;
+            const videoUrl = URL.createObjectURL(finalBlob);
+
+            finalVideo.src = videoUrl;
+            finalVideo.classList.remove('hidden');
+            webcamPreview.classList.add('hidden');
+            downloadShareContainer.classList.remove('hidden');
+            downloadLink.href = videoUrl;
+            downloadLink.download = `min_video_${Date.now()}.mp4`;
+
+            recordedChunks = [];
+            statusDiv.textContent = 'Klar til download eller deling.';
+        };
+
+        mediaRecorder.start();
+    } catch (error) {
+        statusDiv.textContent = `Fejl: ${error.message}.`;
+        console.error('Fejl under optagelse:', error);
+        startButton.classList.remove('hidden');
+        stopButton.classList.add('hidden');
+    }
+});
+
+stopButton.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    }
+});
+
+async function convertWebMtoMP4(webmBlob) {
+    console.log('Starter konvertering...');
+    return new Blob([webmBlob], { type: 'video/mp4' });
+}
+
+shareButton.addEventListener('click', async () => {
+    if (navigator.share && finalBlob) {
+        try {
+            const file = new File([finalBlob], 'min_video.mp4', { type: 'video/mp4' });
+            await navigator.share({
+                title: 'Min Skærmoptagelse',
+                files: [file]
+            });
+        } catch (error) {
+            console.error('Fejl ved deling:', error);
+            statusDiv.textContent = 'Deling mislykkedes.';
+        }
+    } else {
+        statusDiv.textContent = 'Web Share API understøttes ikke i denne browser eller videoen er ikke klar.';
+    }
 });
