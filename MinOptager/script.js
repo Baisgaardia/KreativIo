@@ -24,7 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const { createFFmpeg, fetchFile } = FFmpeg;
     const ffmpeg = createFFmpeg({
         log: true,
-        // RETTELSE: Stien peger nu på den single-threaded kerne, du har downloadet
         corePath: './ffmpeg-core.js',
     });
 
@@ -217,12 +216,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         status.textContent = "Overfører video til konverter...";
-        ffmpeg.FS('writeFile', 'input.webm', await fetchFile(blob));
+        await ffmpeg.writeFile('input.webm', await fetchFile(blob));
         
         status.textContent = "Konverterer til MP4... (dette kan tage lidt tid)";
-        await ffmpeg.run('-i', 'input.webm', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', 'output.mp4');
         
-        const data = ffmpeg.FS('readFile', 'output.mp4');
+        // RETTELSE: 'ffmpeg.run()' er erstattet med 'ffmpeg.exec()'
+        // Bemærk at syntaksen også er ændret til et array af argumenter.
+        await ffmpeg.exec(['-i', 'input.webm', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', 'output.mp4']);
+        
+        const data = await ffmpeg.readFile('output.mp4');
         const finalBlob = new Blob([data.buffer], { type: 'video/mp4' });
         const finalUrl = URL.createObjectURL(finalBlob);
 
@@ -230,8 +232,8 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadLink.href = finalUrl;
         downloadLink.download = `optagelse-${new Date().toISOString()}.mp4`;
 
-        ffmpeg.FS('unlink', 'input.webm');
-        ffmpeg.FS('unlink', 'output.mp4');
+        await ffmpeg.deleteFile('input.webm');
+        await ffmpeg.deleteFile('output.mp4');
 
         status.textContent = "Din video er klar!";
         videoCanvas.classList.add('hidden');
