@@ -23,20 +23,14 @@ document.addEventListener('DOMContentLoaded', () => {
         micStream: null,
         animationFrameId: null,
         stopButton: null,
-        ffmpegLoaded: false, // RETTELSE 1 af 2: Ny variabel til at spore, om ffmpeg er indlæst.
+        ffmpegLoaded: false,
     };
 
-    // --- FFmpeg Initialisering ---
-    const { FFmpeg } = window.FFmpegWASM;
-    const ffmpeg = new FFmpeg({
+    // --- FFmpeg Initialisering (til v0.11.0) ---
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const ffmpeg = createFFmpeg({
         log: true,
     });
-
-    // --- fetchFile hjælpefunktion ---
-    const fetchFile = async (data) => {
-        const response = await fetch(data);
-        return new Uint8Array(await response.arrayBuffer());
-    };
 
 
     // --- Event Listeners for Enhedsvalg ---
@@ -147,10 +141,8 @@ document.addEventListener('DOMContentLoaded', () => {
         cleanup(); 
 
         try {
-            // RETTELSE 2 af 2: Erstatter det fejlende '.isLoaded()' med vores egen state-variabel.
-            if (!state.ffmpegLoaded) {
+            if (!ffmpeg.isLoaded()) {
                 await ffmpeg.load();
-                state.ffmpegLoaded = true;
             }
             
             const blob = new Blob(state.chunks, { type: 'video/webm' });
@@ -173,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.downloadContainer.classList.remove('hidden');
         } catch (error) {
             console.error("FFmpeg fejl:", error);
-            dom.status.textContent = 'Fejl under konvertering af video.';
+            dom.status.textContent = `Fejl under konvertering af video: ${error.message}`;
         }
     }
 
