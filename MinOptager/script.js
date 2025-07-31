@@ -24,7 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const { createFFmpeg, fetchFile } = FFmpeg;
     const ffmpeg = createFFmpeg({
         log: true,
-        corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+        // RETTELSE: Definerer stien til den lokale core-fil
+        corePath: './ffmpeg-core.js',
     });
 
     // --- Option Button Event Listeners ---
@@ -188,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
         recordedChunks = [];
         videoCanvas.classList.remove('hidden');
         finalVideo.classList.add('hidden');
-        webcamPreview.classList.add('hidden'); // FIX: Hide the separate preview element
+        webcamPreview.classList.add('hidden');
 
         const options = { mimeType: 'video/webm; codecs=vp9,opus' };
         mediaRecorder = new MediaRecorder(stream, options);
@@ -205,7 +206,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function processVideo() {
-        // FIX: Better user feedback during processing
         status.textContent = "Stopper optagelse og forbereder fil...";
         stopAllStreams(false);
 
