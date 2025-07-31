@@ -43,7 +43,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (err) {
                 status.textContent = "Kunne ikke få adgang til webcam. Tjek tilladelser.";
                 webcamOption.classList.remove('active');
-                console.error("Webcam error:", err);
             }
         } else {
             if (webcamStream) {
@@ -64,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (err) {
                 status.textContent = "Kunne ikke få adgang til mikrofon. Tjek tilladelser.";
                 micOption.classList.remove('active');
-                console.error("Microphone error:", err);
             }
         } else {
             if (micStream) {
@@ -100,8 +98,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (mediaRecorder && mediaRecorder.state === "recording") {
             mediaRecorder.stop();
         }
-        stopButton.classList.add('hidden');
-        startButton.classList.remove('hidden');
     });
 
     // --- Stream & Canvas Setup ---
@@ -116,6 +112,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 video: { frameRate: 30 },
                 audio: isSystemAudio
             });
+            
+            // NYT: Lytter efter når brugeren klikker på browserens "Stop Deling"-knap
+            const screenTrack = screenStream.getVideoTracks()[0];
+            screenTrack.onended = () => {
+                // Simulerer et klik på vores egen stop-knap
+                if (stopButton.style.display !== 'none') {
+                    stopButton.click();
+                }
+            };
         }
 
         const videoTrack = screenStream ? screenStream.getVideoTracks()[0] : (webcamStream ? webcamStream.getVideoTracks()[0] : null);
@@ -204,27 +209,29 @@ document.addEventListener('DOMContentLoaded', () => {
         stopButton.classList.remove('hidden');
     }
 
+    // Oprettet fra bunden til FFmpeg v0.12+ API
     async function processVideo() {
         status.textContent = "Stopper optagelse og forbereder fil...";
         stopAllStreams(false);
 
         const blob = new Blob(recordedChunks, { type: 'video/webm' });
         
-        if (!ffmpeg.isLoaded()) {
+        if (!ffmpeg.loaded) {
             status.textContent = "Indlæser videokonverter (FFmpeg)...";
             await ffmpeg.load();
         }
         
         status.textContent = "Overfører video til konverter...";
-        // RETTELSE: Bruger nu den korrekte FS (File System) metode
-        ffmpeg.FS('writeFile', 'input.webm', await fetchFile(blob));
+        // RETTELSE: Bruger den korrekte 'writeFile'-metode for v0.12
+        await ffmpeg.writeFile('input.webm', await fetchFile(blob));
         
         status.textContent = "Konverterer til MP4... (dette kan tage lidt tid)";
         
+        // RETTELSE: Bruger den korrekte 'exec'-metode
         await ffmpeg.exec(['-i', 'input.webm', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', 'output.mp4']);
         
-        // RETTELSE: Bruger nu den korrekte FS metode
-        const data = ffmpeg.FS('readFile', 'output.mp4');
+        // RETTELSE: Bruger den korrekte 'readFile'-metode for v0.12
+        const data = await ffmpeg.readFile('output.mp4');
         const finalBlob = new Blob([data.buffer], { type: 'video/mp4' });
         const finalUrl = URL.createObjectURL(finalBlob);
 
@@ -232,18 +239,20 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadLink.href = finalUrl;
         downloadLink.download = `optagelse-${new Date().toISOString()}.mp4`;
 
-        // RETTELSE: Bruger nu FS metoden 'unlink' til at slette filer
-        ffmpeg.FS('unlink', 'input.webm');
-        ffmpeg.FS('unlink', 'output.mp4');
+        // RETTELSE: Bruger den korrekte 'deleteFile'-metode for v0.12
+        await ffmpeg.deleteFile('input.webm');
+        await ffmpeg.deleteFile('output.mp4');
 
         status.textContent = "Din video er klar!";
         videoCanvas.classList.add('hidden');
         finalVideo.classList.remove('hidden');
         downloadShareContainer.classList.remove('hidden');
+        
+        stopButton.classList.add('hidden');
+        startButton.classList.remove('hidden');
     }
 
     // --- Utility Functions ---
-
     function resetUI() {
         finalVideo.classList.add('hidden');
         videoCanvas.classList.add('hidden');
