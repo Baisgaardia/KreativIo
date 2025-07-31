@@ -113,10 +113,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 audio: isSystemAudio
             });
             
-            // NYT: Lytter efter når brugeren klikker på browserens "Stop Deling"-knap
             const screenTrack = screenStream.getVideoTracks()[0];
             screenTrack.onended = () => {
-                // Simulerer et klik på vores egen stop-knap
                 if (stopButton.style.display !== 'none') {
                     stopButton.click();
                 }
@@ -209,7 +207,6 @@ document.addEventListener('DOMContentLoaded', () => {
         stopButton.classList.remove('hidden');
     }
 
-    // Oprettet fra bunden til FFmpeg v0.12+ API
     async function processVideo() {
         status.textContent = "Stopper optagelse og forbereder fil...";
         stopAllStreams(false);
@@ -222,15 +219,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         status.textContent = "Overfører video til konverter...";
-        // RETTELSE: Bruger den korrekte 'writeFile'-metode for v0.12
         await ffmpeg.writeFile('input.webm', await fetchFile(blob));
         
         status.textContent = "Konverterer til MP4... (dette kan tage lidt tid)";
         
-        // RETTELSE: Bruger den korrekte 'exec'-metode
         await ffmpeg.exec(['-i', 'input.webm', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', 'output.mp4']);
         
-        // RETTELSE: Bruger den korrekte 'readFile'-metode for v0.12
         const data = await ffmpeg.readFile('output.mp4');
         const finalBlob = new Blob([data.buffer], { type: 'video/mp4' });
         const finalUrl = URL.createObjectURL(finalBlob);
@@ -239,7 +233,6 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadLink.href = finalUrl;
         downloadLink.download = `optagelse-${new Date().toISOString()}.mp4`;
 
-        // RETTELSE: Bruger den korrekte 'deleteFile'-metode for v0.12
         await ffmpeg.deleteFile('input.webm');
         await ffmpeg.deleteFile('output.mp4');
 
@@ -248,6 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
         finalVideo.classList.remove('hidden');
         downloadShareContainer.classList.remove('hidden');
         
+        // RETTELSE: Skjuler "Stop Optagelse" og viser "Start Optagelse" igen
         stopButton.classList.add('hidden');
         startButton.classList.remove('hidden');
     }
