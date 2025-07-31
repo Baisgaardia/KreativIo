@@ -216,15 +216,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         status.textContent = "Overfører video til konverter...";
-        await ffmpeg.writeFile('input.webm', await fetchFile(blob));
+        // RETTELSE: Bruger nu den korrekte FS (File System) metode
+        ffmpeg.FS('writeFile', 'input.webm', await fetchFile(blob));
         
         status.textContent = "Konverterer til MP4... (dette kan tage lidt tid)";
         
-        // RETTELSE: 'ffmpeg.run()' er erstattet med 'ffmpeg.exec()'
-        // Bemærk at syntaksen også er ændret til et array af argumenter.
         await ffmpeg.exec(['-i', 'input.webm', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', 'output.mp4']);
         
-        const data = await ffmpeg.readFile('output.mp4');
+        // RETTELSE: Bruger nu den korrekte FS metode
+        const data = ffmpeg.FS('readFile', 'output.mp4');
         const finalBlob = new Blob([data.buffer], { type: 'video/mp4' });
         const finalUrl = URL.createObjectURL(finalBlob);
 
@@ -232,8 +232,9 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadLink.href = finalUrl;
         downloadLink.download = `optagelse-${new Date().toISOString()}.mp4`;
 
-        await ffmpeg.deleteFile('input.webm');
-        await ffmpeg.deleteFile('output.mp4');
+        // RETTELSE: Bruger nu FS metoden 'unlink' til at slette filer
+        ffmpeg.FS('unlink', 'input.webm');
+        ffmpeg.FS('unlink', 'output.mp4');
 
         status.textContent = "Din video er klar!";
         videoCanvas.classList.add('hidden');
