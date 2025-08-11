@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>World Bank Data & Sammenligning & Grafer</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; }
+    .controls, #graphControls { display: flex; gap: .5em; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
+    select, button, input[type="text"] { font-size: 1rem; padding: .5em; }
+    .table-container { overflow-x: auto; }
+    table { border-collapse: collapse; width: max-content; min-width: 100%; margin-top: 1rem; }
+    th, td { border: 1px solid #ddd; padding: .5em; text-align: center; white-space: nowrap; }
+    th { background: #f2f2f2; }
+    tr:nth-child(even) { background: #fafafa; }
+    canvas#chart { max-width: 700px; max-height: 400px; width: 100%; height: auto; margin-top: 1rem; }
+    /* Modal styling */
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
+    .modal-content { background: #fff; margin: 5% auto; padding: 1rem; border-radius: 4px; width: 80%; max-width: 600px; max-height: 80%; overflow-y: auto; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; }
+    .modal-body { margin-top: 1rem; columns: 3; column-gap: 1rem; }
+    .modal-body label { display: block; margin-bottom: .25em; }
+    .modal-footer { margin-top: 1em; text-align: right; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+  <h1>World Bank Data & Sammenligning & Grafer</h1>
+
+  <div class="controls">
+    <label>Land 1:
+      <select id="country1"><option value="" disabled selected>– vælg land –</option></select>
+    </label>
+    <label>Land 2 (valgfri):
+      <select id="country2"><option value="" disabled selected>– vælg land –</option></select>
+    </label>
+    <button id="openYearModal" type="button">Vælg år</button>
+    <button id="btnFetch">Hent data</button>
+    <button id="btnExcel" disabled>Download Excel (Land 1)</button>
+    <button id="btnGraphs">Lav grafer</button>
+  </div>
+
+  <div id="tableContainer" class="table-container"></div>
+
+  <div id="graphSection" style="display: none;">
+    <h2>Graf-værktøj (Land 1)</h2>
+    <div id="graphControls">
+      <input type="text" id="filterInput" placeholder="Søg indikator…" disabled />
+      <select id="indicatorSelect" multiple size="8" disabled></select>
+      <select id="yearSelect" multiple size="6" disabled></select>
+      <button id="last5Btn" disabled>Seneste 5 år</button>
+      <button id="last10Btn" disabled>Seneste 10 år</button>
+      <button id="plotBtn" disabled>Tegn graf</button>
+    </div>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div id="yearModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Vælg År</h3>
+        <button id="closeYearModal" style="font-size:1.2rem;">✖</button>
+      </div>
+      <div>
+        <button id="selectAllYears" type="button">Vælg alle</button>
+        <button id="clearAllYears" type="button">Fravælg alle</button>
+        <input type="text" id="yearSearch" placeholder="Søg år…" style="margin-left:1rem; padding:.3em; width:150px;" />
+      </div>
+      <div class="modal-body" id="yearList"></div>
+      <div class="modal-footer">
+        <button id="applyYears" type="button">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <footer style="display:flex; justify-content:space-between; font-size:0.8em; margin:2rem 0 0 0;">
+    <div class="left-footer" style="text-align:left;">
+      The World Bank. (2025). World Development Indicators. Hentet 25. maj 2025 fra https://api.worldbank.org/v2/country/{land}/indicator/{indikator}?format=json
+    </div>
+    <div class="right-footer" style="text-align:right;">
+      &copy; Allan Baisgaard, Aalborg Handelsgymnasie, Turøgade
+    </div>
+  </footer>
+
+  <script>
+    // Konfiguration
+    const proxyUrl = '';
+    const apiBase  = 'https://api.worldbank.org/v2/country/';
+    const params   = '?format=json&per_page=1000';
+
+    // Indikatorer
+    const indicators = [
+      { code: 'AG.LND.TOTL.K2',    name: 'Areal (kvadratkilometer)' },
+      { code: 'SP.POP.GROW',        name: 'Befolkningstilvæksten (årlig %)' },
+      { code: 'SP.URB.TOTL.IN.ZS',  name: 'Urban befolkning (% af befolkningen)' },
+      { code: 'SP.URB.GROW',        name: 'Urban befolkningsvækst (årlig %)' },
+      { code: 'NY.GDP.MKTP.KD.ZG',  name: 'BNP-vækst (årlig %)' },
+      { code: 'NY.GDP.PCAP.KD',     name: 'BNP per indbygger (konstant 2015 US$)' },
+      { code: 'NY.GDP.PCAP.PP.KD',  name: 'BNP per indbygger, PPP (konstant 2021 $)' },
+      { code: 'NY.GDP.PCAP.KD.ZG',  name: 'BNP per indbygger vækst (årlig %)' },
+      { code: 'NE.GDI.FTOT.ZS',     name: 'Offentlige investeringer i % af BNP' },
+      { code: 'FP.CPI.TOTL.ZG',     name: 'Inflation, forbrugerpriser (årlig %)' },
+      { code: 'SL.UEM.TOTL.ZS',     name: 'Arbejdsløshed, samlet (% af arbejdskraft)' },
+      { code: 'SI.POV.GINI',        name: 'Gini-indeks' },
+      { code: 'SI.DST.10TH.10',     name: 'Indkomstandel øverste 10%' },
+      { code: 'SI.DST.05TH.20',     name: 'Indkomstandel øverste 20%' },
+      { code: 'SI.DST.FRST.10',     name: 'Indkomstandel nederste 10%' },
+      { code: 'SI.DST.FRST.20',     name: 'Indkomstandel nederste 20%' },
+      { code: 'SP.DYN.LE00.IN',     name: 'Forventet levealder ved fødslen, samlet (år)' },
+      { code: 'SP.DYN.LE00.MA.IN',  name: 'Forventet levealder ved fødslen, mænd (år)' },
+      { code: 'SP.DYN.LE00.FE.IN',  name: 'Forventet levealder ved fødslen, kvinder (år)' },
+      { code: 'SP.DYN.CBRT.IN',     name: 'Fødselsraten i promille' },
+      { code: 'SP.DYN.CDRT.IN',     name: 'Dødraten i promille' },
+      { code: 'SP.DYN.IMRT.IN',     name: 'Spædbørnsdødelighed (pr. 1.000)' },
+      { code: 'SH.DYN.MORT',        name: 'Dødelighed under 5 år (pr. 1.000)' },
+      { code: 'SP.DYN.TFRT.IN',     name: 'Fertilitetsraten (fødsler/kvinde)' },
+      { code: 'SL.AGR.EMPL.ZS',     name: 'Antal beskæftigede i primære erhverv' },
+      { code: 'NV.AGR.TOTL.ZS',     name: 'Primære erhvervs værditilvækst (% af BNP)' },
+      { code: 'SL.IND.EMPL.ZS',     name: 'Antal beskæftigede i det sekundære erhverv' },
+      { code: 'NV.IND.TOTL.ZS',     name: 'Sekundær erhvervs værditilvækst (% af BNP)' },
+      { code: 'SL.SRV.EMPL.ZS',     name: 'Antal beskæftigede i det tertiære erhverv' },
+      { code: 'NV.SRV.TOTL.ZS',     name: 'Tertiære erhvervs værditilvækst (% af BNP)' },
+      { code: 'SH.MED.PHYS.ZS',     name: 'Læger (pr. 1.000 indb.)' },
+      { code: 'SH.MED.BEDS.ZS',     name: 'Hospitalssenge (pr. 1.000 indb.)' },
+      { code: 'SE.COM.DURS',        name: 'Varighed obligatorisk uddannelse (år)' },
+      { code: 'SH.STA.BRTC.ZS',     name: 'Fødsler assisteret af sundhedspersonale (%)' },
+      { code: 'EN.GHG.CO2.ZG.AR5',  name: 'CO₂-udledning (% ændring fra 1990)' },
+      { code: 'IT.NET.BBND.P2',     name: 'Bredbåndsabonnementer (pr. 100 pers.)' },
+      { code: 'IT.MLT.MAIN.P2',     name: 'Fastnettelefonabonn. (pr. 100 pers.)' },
+      { code: 'IT.CEL.SETS.P2',     name: 'Mobilabonnementer (pr. 100 pers.)' },
+      { code: 'EG.ELC.ACCS.ZS',     name: 'Adgang til elektricitet (%)' },
+      { code: 'EG.ELC.ACCS.RU.ZS',  name: 'Adgang til elektricitet, landdistrikter (%)' },
+      { code: 'EG.ELC.ACCS.UR.ZS',  name: 'Adgang til elektricitet, byer (%)' },
+      { code: 'SH.H2O.BASW.ZS',     name: 'Grundlæggende drikkevandsservice (%)' },
+      { code: 'SH.H2O.SMDW.ZS',     name: 'Sikkert forvaltet drikkevand (%)' },
+      { code: 'SH.H2O.SMDW.RU.ZS',  name: 'Sikkert forvaltet drikkevand, landdistr. (%)' },
+      { code: 'SH.H2O.SMDW.UR.ZS',  name: 'Sikkert forvaltet drikkevand, byer (%)' }
+    ];
+
+    // Alle år fra 1960–2024
+    let years = [];
+    for (let y = 1960; y <= 2024; y++) years.push(String(y));
+    let selectedYears = [...years];
+    let latest1, latest2, graphChart;
+
+    // Load page content
+    document.addEventListener('DOMContentLoaded', () => {
+      populateCountryDropdowns();
+      initializeYearModal();
+
+    // Bind Fetch Data
+    document.getElementById('btnFetch').onclick = () => {
+      const c1 = document.getElementById('country1').value;
+      const c2 = document.getElementById('country2').value;
+      if (!c1) return alert('Vælg venligst mindst ét land.');
+
+      document.getElementById('tableContainer').innerHTML = 'Henter data...';
+      const c1Name = document.getElementById('country1').options[document.getElementById('country1').selectedIndex].text;
+      const c2Name = c2 ? document.getElementById('country2').options[document.getElementById('country2').selectedIndex].text : '';
+
+      if (c2) { // Sammenligning
+        Promise.all([fetchRaw(c1), fetchRaw(c2)]).then(([p1, p2]) => {
+          latest1 = p1; latest2 = p2;
+          const yearsUnion = [...new Set([...p1.years, ...p2.years])].sort();
+          p1.years = yearsUnion; p2.years = yearsUnion;
+          document.getElementById('tableContainer').innerHTML = '';
+          document.getElementById('tableContainer').append(buildComparison(p1, p2, c1Name, c2Name));
+          document.getElementById('btnExcel').disabled = false;
+        });
+      } else { // Ét land
+        fetchRaw(c1).then(p => {
+          latest1 = p; latest2 = null;
+          document.getElementById('tableContainer').innerHTML = '';
+          document.getElementById('tableContainer').append(buildTable(p));
+          document.getElementById('btnExcel').disabled = false;
+        });
+      }
+    };
+
+    // Populate countries
+    function populateCountryDropdowns() {
+      fetch(apiBase + 'all?format=json&per_page=300')
+        .then(r => r.json())
+        .then(json => {
+          const list = json[1].filter(c => c.region.value !== 'Aggregates');
+          list.forEach(c => {
+            document.getElementById('country1').append(new Option(c.name, c.id));
+            document.getElementById('country2').append(new Option(c.name, c.id));
+          });
+        });
+    }
+
+    // Initialize year modal
+    function initializeYearModal() {
+      const modal = document.getElementById('yearModal');
+      const list = document.getElementById('yearList');
+      const search = document.getElementById('yearSearch');
+
+      function renderList(filter = '') {
+        list.innerHTML = '';
+        years.filter(y => y.includes(filter)).forEach(y => {
+          const lbl = document.createElement('label');
+          const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = y;
+          cb.checked = selectedYears.includes(y);
+          lbl.append(cb, ' ', y);
+          list.append(lbl);
+        });
+      }
+      renderList();
+
+      document.getElementById('openYearModal').onclick = () => { modal.style.display = 'block'; search.value=''; renderList(); };
+      document.getElementById('closeYearModal').onclick = () => modal.style.display = 'none';
+      document.getElementById('selectAllYears').onclick = () => { selectedYears = [...years]; renderList(search.value); };
+      document.getElementById('clearAllYears').onclick = () => { selectedYears = []; renderList(search.value); };
+      search.oninput = () => renderList(search.value);
+      document.getElementById('applyYears').onclick = () => {
+        selectedYears = Array.from(list.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+        modal.style.display = 'none';
+      };
+      window.onclick = e => { if (e.target === modal) modal.style.display = 'none'; };
+    }
+
+    // Fetch raw
+    async function fetchRaw(country) {
+      const dataMap = {};
+      indicators.forEach(ind => { dataMap[ind.code] = {}; selectedYears.forEach(y => dataMap[ind.code][y] = null); });
+      await Promise.all(indicators.map(ind =>
+        fetch(apiBase + country + '/indicator/' + ind.code + params)
+          .then(r => r.json())
+          .then(json => json[1] && json[1].forEach(o => { // <-- Check for json[1]
+            if (selectedYears.includes(o.date)) dataMap[ind.code][o.date] = +o.value;
+          }))
+      ));
+      return { years: selectedYears, dataMap };
+    }
+
+    // 3) Byg tabel
+    function buildTable(p) {
+      const tbl = document.createElement('table');
+      const yearsToShow = p.years && p.years.length ? p.years : selectedYears;
+      const head = tbl.createTHead().insertRow();
+      head.insertCell().textContent = 'Nøgletal \ År';
+      yearsToShow.forEach(y => head.insertCell().textContent = y);
+      const body = tbl.createTBody();
+      indicators.forEach(ind => {
+        const row = body.insertRow(); row.insertCell().textContent = ind.name;
+        yearsToShow.forEach(y => {
+          const v = p.dataMap[ind.code] ? p.dataMap[ind.code][y] : null;
+          row.insertCell().textContent = v != null ? v.toFixed(2) : '–';
+        });
+      });
+      return tbl;
+    }
+
+    // 4) Byg sammenligning
+    function buildComparison(p1, p2, c1, c2) {
+      const tbl = document.createElement('table');
+      const head = tbl.createTHead();
+      const r1 = head.insertRow(); r1.insertCell().rowSpan=2; r1.cells[0].textContent='Nøgletal \ År';
+      p1.years.forEach(y=>{ const c=r1.insertCell(); c.colSpan=2; c.textContent=y; });
+      const r2 = head.insertRow(); p1.years.forEach(_=>{ r2.insertCell().textContent=c1; r2.insertCell().textContent=c2; });
+      const body = tbl.createTBody();
+      indicators.forEach(ind=>{
+        const row = body.insertRow(); row.insertCell().textContent=ind.name;
+        p1.years.forEach(y=>{
+          const v1 = p1.dataMap[ind.code][y], v2 = p2.dataMap[ind.code][y];
+          row.insertCell().textContent = v1!=null? v1.toFixed(2):'–';
+          row.insertCell().textContent = v2!=null? v2.toFixed(2):'–';
+        });
+      });
+      return tbl;
+    }
+
+    // 5) Download Excel
+    function downloadExcel() {
+      const aoa = [['Nøgletal \ År', ...latest1.years]];
+      indicators.forEach(ind=>{
+        const row=[ind.name]; latest1.years.forEach(y=>{ const v=latest1.dataMap[ind.code][y]; row.push(v!=null?+v.toFixed(2):null); });
+        aoa.push(row);
+      });
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      XLSX.utils.book_append_sheet(wb, ws, 'Data');
+      XLSX.writeFile(wb, `WorldBank_${document.getElementById('country1').value}.xlsx`);
+    }
+
+    // 6) Populate grafer
+    function populateGraphControls() {
+      const fi  = document.getElementById('filterInput');
+      const iS  = document.getElementById('indicatorSelect');
+      const yS  = document.getElementById('yearSelect');
+      // Enable controls
+      [fi, iS, yS,
+       document.getElementById('last5Btn'),
+       document.getElementById('last10Btn'),
+       document.getElementById('plotBtn')]
+        .forEach(el => el.disabled = false);
+
+      // Populate indicators
+      iS.innerHTML = '';
+      indicators.forEach(ind => iS.append(new Option(ind.name, ind.code)));
+      // Populate years from selectedYears
+      yS.innerHTML = '';
+      selectedYears.forEach(y => yS.append(new Option(y, y)));
+
+      // Filter indicators
+      fi.oninput = () => {
+        const val = fi.value.toLowerCase();
+        Array.from(iS.options).forEach(o => o.hidden = !o.text.toLowerCase().includes(val));
+      };
+
+      // Quick-select recent years
+      document.getElementById('last5Btn').onclick = () => {
+        const rec = selectedYears.slice(-5);
+        Array.from(yS.options).forEach(o => o.selected = rec.includes(o.value));
+      };
+      document.getElementById('last10Btn').onclick = () => {
+        const rec = selectedYears.slice(-10);
+        Array.from(yS.options).forEach(o => o.selected = rec.includes(o.value));
+      };
+
+      // Plot graph
+      document.getElementById('plotBtn').onclick = () => {
+        const selI = Array.from(iS.selectedOptions).map(o => o.value);
+        const selY = Array.from(yS.selectedOptions).map(o => o.value);
+        if (!selI.length || !selY.length) return alert('Vælg mindst én indikator og ét år.');
+        
+        const datasets = selI.map(code => ({
+          label: indicators.find(i => i.code === code).name,
+          data: selY.map(y => latest1.dataMap[code] ? latest1.dataMap[code][y] : null),
+          fill: false,
+          borderWidth: 2
+        }));
+
+        if (graphChart) graphChart.destroy();
+        const ctx = document.getElementById('chart').getContext('2d');
+        graphChart = new Chart(ctx, {
+          type: 'line',
+          data: { labels: selY, datasets },
+          options: { 
+            responsive: true, 
+            scales: { y: { beginAtZero: false } },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    let label = context.dataset.label || '';
+                    if (label) {
+                      label += ': ';
+                    }
+                    if (context.parsed.y !== null) {
+                      label += context.parsed.y.toFixed(2);
+                    }
+                    return label;
+                  }
+                }
+              }
+            }
+          }
+        });
+      };
+    };
+
+      // Bind Download Excel
+      document.getElementById('btnExcel').onclick = () => {
+        if (!latest1) return alert('Ingen data at downloade');
+        downloadExcel();
+      };
+
+      // Bind Lav grafer
+      document.getElementById('btnGraphs').onclick = () => {
+        if (!latest1) return alert('Hent data først');
+        document.getElementById('graphSection').style.display = 'block';
+        populateGraphControls();
+      };
+    });
+  </script>
+</body>
+</html>
