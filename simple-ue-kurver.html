@@ -11,6 +11,7 @@
     input,select,button{padding:0.35rem 0.6rem;border:1px solid #ccc;border-radius:0.5rem;font-size:1rem;}
     button{cursor:pointer;background:#2563eb;color:#fff;border:none;transition:background .2s;}
     button:hover{background:#1d4ed8;}
+    .controls-container button {margin-left: 0.5rem;}
     .legend{margin-top:0.6rem;font-size:0.85rem;}
     .legend span{display:inline-flex;align-items:center;margin-right:1rem;gap:4px;}
     .legend-line{width:30px;height:0;border-top-width:3px;border-top-style:solid;}
@@ -35,14 +36,19 @@
 
   <section>
     <h3>Vælg en begivenhed</h3>
-    <select id="curveSelect">
-      <option value="">--Vælg--</option>
-      <option value="demand_up">Efterspørgslen stiger (skift til højre)</option>
-      <option value="demand_down">Efterspørgslen falder (skift til venstre)</option>
-      <option value="supply_up">Udbuddet stiger (skift til højre)</option>
-      <option value="supply_down">Udbuddet falder (skift til venstre)</option>
-    </select>
-    <button onclick="applyEvent()">Anvend</button>
+    <div class="controls-container">
+        <select id="curveSelect">
+          <option value="">--Vælg--</option>
+          <option value="demand_up">Efterspørgslen stiger (skift til højre)</option>
+          <option value="demand_down">Efterspørgslen falder (skift til venstre)</option>
+          <option value="supply_up">Udbuddet stiger (skift til højre)</option>
+          <option value="supply_down">Udbuddet falder (skift til venstre)</option>
+        </select>
+        <button onclick="applyEvent()">Anvend</button>
+        <button onclick="setDemandSlope('steep')">Stejl hældning (Prisuelastisk)</button>
+        <button onclick="setDemandSlope('flat')">Flad hældning (Priselastisk)</button>
+        <button onclick="setDemandSlope('default')">Nulstil hældning</button>
+    </div>
   </section>
 
   <hr />
@@ -67,7 +73,9 @@ const maxP=100,maxQ=100;
 const priceToY=p=>h-(p/maxP)*h; const qtyToX=q=>(q/maxQ)*w;
 
 /***** Kurve­parametre *****/
-const demandSlope=-1,supplySlope=1,shift=15;
+const defaultDemandSlope = -1;
+let demandSlope = defaultDemandSlope;
+const supplySlope=1,shift=15;
 const baseDemandIntercept=90,baseSupplyIntercept=10;
 let demandIntercept=baseDemandIntercept;
 let supplyIntercept=baseSupplyIntercept;
@@ -129,6 +137,7 @@ function crosshair(parent,q,p,label){
 
 /***** Baseline tegnes én gang *****/
 function drawBaseline(){
+  while(gBase.firstChild) gBase.removeChild(gBase.firstChild); // Ryd tidligere baseline
   line(gBase,0,baseDemandIntercept,maxQ,baseDemandIntercept+demandSlope*maxQ,'#2563eb');
   line(gBase,0,baseSupplyIntercept,maxQ,baseSupplyIntercept+supplySlope*maxQ,'#ef4444');
   const Q0=(baseDemandIntercept-baseSupplyIntercept)/(supplySlope-demandSlope);
@@ -166,6 +175,22 @@ function resetToBaseline(){
 }
 
 /***** Event-håndtering *****/
+function setDemandSlope(slopeType) {
+    switch(slopeType) {
+        case 'steep':
+            demandSlope = -2; // Stejlere hældning
+            break;
+        case 'flat':
+            demandSlope = -0.5; // Fladere hældning
+            break;
+        case 'default':
+            demandSlope = defaultDemandSlope; // Nulstil til default
+            break;
+    }
+    drawBaseline(); // Gentegn baseline med den nye hældning
+    updateDynamic(); // Opdater eventuelle skift
+}
+
 function applyEvent(){
   const val=document.getElementById('curveSelect').value;
   resetToBaseline();
