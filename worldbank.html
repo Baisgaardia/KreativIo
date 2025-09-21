@@ -173,14 +173,12 @@
     for (let y = 1960; y <= 2024; y++) years.push(String(y));
     let selectedYears = [...years];
     let latest1, latest2, graphChart;
-    let initialCountryGiniData = null; // Gemmer landets Gini for nulstillingsknap
+    let initialCountryGiniData = null;
 
-    // Load page content
     document.addEventListener('DOMContentLoaded', () => {
       populateCountryDropdowns();
       initializeYearModal();
 
-    // Bind Fetch Data
     document.getElementById('btnFetch').onclick = () => {
       const c1 = document.getElementById('country1').value;
       const c2 = document.getElementById('country2').value;
@@ -190,7 +188,7 @@
       const c1Name = document.getElementById('country1').options[document.getElementById('country1').selectedIndex].text;
       const c2Name = c2 ? document.getElementById('country2').options[document.getElementById('country2').selectedIndex].text : '';
 
-      if (c2) { // Sammenligning
+      if (c2) {
         Promise.all([fetchRaw(c1), fetchRaw(c2)]).then(([p1, p2]) => {
           latest1 = p1; latest2 = p2;
           const yearsUnion = [...new Set([...p1.years, ...p2.years])].sort();
@@ -199,7 +197,7 @@
           document.getElementById('tableContainer').append(buildComparison(p1, p2, c1Name, c2Name));
           document.getElementById('btnExcel').disabled = false;
         });
-      } else { // Ét land
+      } else {
         fetchRaw(c1).then(p => {
           latest1 = p; latest2 = null;
           document.getElementById('tableContainer').innerHTML = '';
@@ -209,7 +207,6 @@
       }
     };
 
-    // Populate countries
     function populateCountryDropdowns() {
       fetch(apiBase + 'all?format=json&per_page=300')
         .then(r => r.json())
@@ -222,7 +219,6 @@
         });
     }
 
-    // Initialize year modal
     function initializeYearModal() {
       const modal = document.getElementById('yearModal');
       const list = document.getElementById('yearList');
@@ -252,7 +248,6 @@
       window.onclick = e => { if (e.target === modal) modal.style.display = 'none'; };
     }
 
-    // Fetch raw
     async function fetchRaw(country) {
       const dataMap = {};
       indicators.forEach(ind => { dataMap[ind.code] = {}; selectedYears.forEach(y => dataMap[ind.code][y] = null); });
@@ -266,7 +261,6 @@
       return { years: selectedYears, dataMap };
     }
 
-    // Byg tabel
     function buildTable(p) {
       const tbl = document.createElement('table');
       const yearsToShow = p.years && p.years.length ? p.years : selectedYears;
@@ -284,7 +278,6 @@
       return tbl;
     }
 
-    // Byg sammenligning
     function buildComparison(p1, p2, c1, c2) {
       const tbl = document.createElement('table');
       const head = tbl.createTHead();
@@ -303,7 +296,6 @@
       return tbl;
     }
 
-    // Download Excel
     function downloadExcel() {
       const aoa = [['Nøgletal \\ År', ...latest1.years]];
       indicators.forEach(ind=>{
@@ -316,7 +308,6 @@
       XLSX.writeFile(wb, `WorldBank_${document.getElementById('country1').value}.xlsx`);
     }
 
-    // Populate grafer
     function populateGraphControls() {
       const fi  = document.getElementById('filterInput');
       const iS  = document.getElementById('indicatorSelect');
@@ -383,7 +374,6 @@
       };
     };
 
-    // Bind event handlers
     document.getElementById('btnExcel').onclick = () => {
         if (!latest1) return alert('Ingen data at downloade');
         downloadExcel();
@@ -398,7 +388,7 @@
     });
 
     // START: GINI-SIMULATOR KODE
-    let lorenzActualChart, lorenzSimChart, currentIncomes;
+    let lorenzActualChart, lorenzSimChart;
 
     function showGiniSection() {
         if (!latest1) {
@@ -423,7 +413,7 @@
         };
 
         const giniData = findLatestValue(latest1.dataMap['SI.POV.GINI']);
-        initialCountryGiniData = giniData; // Gem landets Gini for "Nulstil" knap
+        initialCountryGiniData = giniData;
 
         const bottom10 = findLatestValue(latest1.dataMap['SI.DST.FRST.10']);
         const bottom20 = findLatestValue(latest1.dataMap['SI.DST.FRST.20']);
@@ -442,7 +432,6 @@
             if (lorenzActualChart) lorenzActualChart.destroy();
         }
 
-        // Start simulationen med landets basis-ulighed
         resetSimulation(initialCountryGiniData);
     }
 
@@ -475,12 +464,12 @@
       });
     }
 
-    function plotSimulationLorenz(incomes, initialGini = null) {
+    function plotSimulationLorenz(incomes, newGiniValue = null) {
         if (lorenzSimChart) lorenzSimChart.destroy();
         const ctx = document.getElementById('lorenzChartSimulation').getContext('2d');
         const { lorenzPoints, gini: calculatedGini } = calculateLorenzAndGiniFromIncomes(incomes);
 
-        const displayGini = initialGini !== null ? initialGini / 100 : calculatedGini;
+        const displayGini = newGiniValue !== null ? newGiniValue / 100 : calculatedGini;
 
         lorenzSimChart = new Chart(ctx, {
             type: 'line',
@@ -495,21 +484,26 @@
         });
     }
 
+    // ENDELIG, KORRIGERET OG FORENKLET LOGIK FOR SCENARIER
     const scenarios = {
-        mikrolaan: { apply: incomes => { const n = Math.floor(incomes.length * 0.2); for (let i=0; i<n; i++) incomes[i] *= 1.25; return incomes; }, feedback: "Mikrolån styrker små iværksættere blandt de fattigste. Dette løfter bunden af indkomstfordelingen og mindsker uligheden." },
-        uddannelse: { apply: incomes => { const n = Math.floor(incomes.length * 0.5); for (let i=10; i<n; i++) incomes[i] *= 1.15; return incomes; }, feedback: "Bedre uddannelse giver adgang til jobs med højere løn, hvilket især gavner den lavere middelklasse og reducerer uligheden." },
-        fairtrade: { apply: incomes => { const n = Math.floor(incomes.length * 0.4); for (let i=5; i<n; i++) incomes[i] *= 1.20; return incomes; }, feedback: "Fairtrade-aftaler sikrer en mere retfærdig pris for landbrugsvarer. Det øger indkomsten for mange småbønder og mindsker uligheden." },
-        landgrabbing: { apply: incomes => { const b = Math.floor(incomes.length * 0.1), t = Math.ceil(incomes.length * 0.95); for (let i=0; i<b; i++) incomes[i] *= 0.7; for (let i=t; i<incomes.length; i++) incomes[i] *= 1.1; return incomes; }, feedback: "Når småbønder mister deres jord, falder de i fattigdom, mens profitten tilfalder en lille elite. Dette øger uligheden markant." },
-        korruption: { apply: incomes => { const t = Math.ceil(incomes.length * 0.99); for (let i=t; i<incomes.length; i++) incomes[i] *= 1.5; return incomes; }, feedback: "Korruption omdirigerer midler, der skulle have hjulpet samfundet, til en lille elite. De rigeste bliver markant rigere, og uligheden vokser." },
-        fdi: { apply: incomes => { const t = Math.floor(incomes.length * 0.8), m = Math.floor(incomes.length * 0.4); for (let i=0; i<incomes.length; i++) { if (i>=t) incomes[i]*=1.15; else if (i>=m) incomes[i]*=1.05; } return incomes; }, feedback: "Udenlandske investeringer skaber nye jobs, men gavner ofte faglært arbejdskraft og kapitalejere mest. Dette kan øge indkomstforskellene." },
-        demokrati: { apply: incomes => { const n = Math.floor(incomes.length * 0.6); for (let i=0; i<n; i++) incomes[i] *= 1.12; return incomes; }, feedback: "Stærkere demokrati fører ofte til love, der styrker arbejdstagerrettigheder og sociale sikkerhedsnet, hvilket mindsker uligheden." },
-        mereBistand: { apply: incomes => { const n = Math.floor(incomes.length * 0.25); for (let i=0; i<n; i++) incomes[i] *= 1.20; return incomes; }, feedback: "Velanvendt ulandsbistand i f.eks. sundhed og fattigdomsbekæmpelse kan give et direkte løft til de fattigste og reducere uligheden." },
-        mindreBistand: { apply: incomes => { const n = Math.floor(incomes.length * 0.25); for (let i=0; i<n; i++) incomes[i] *= 0.85; return incomes; }, feedback: "Mindre ulandsbistand kan betyde nedskæringer i sociale programmer, der støtter de fattigste, hvilket øger uligheden." },
-        offentligInvest: { apply: incomes => { const s = Math.floor(incomes.length * 0.1), e = Math.floor(incomes.length * 0.8); for (let i=s; i<e; i++) incomes[i] *= 1.15; return incomes; }, feedback: "Offentlige investeringer i infrastruktur og uddannelse skaber jobs for en bred del af befolkningen og styrker middelklassen." }
+        // Scenarier der mindsker ulighed (trækker point fra Gini)
+        mikrolaan: { feedback: "Mikrolån styrker små iværksættere blandt de fattigste. Dette løfter bunden af indkomstfordelingen og mindsker uligheden.", giniModifier: -3.0 },
+        uddannelse: { feedback: "Bedre uddannelse giver adgang til jobs med højere løn, hvilket især gavner den lavere middelklasse og reducerer uligheden.", giniModifier: -4.0 },
+        fairtrade: { feedback: "Fairtrade-aftaler sikrer en mere retfærdig pris for landbrugsvarer. Det øger indkomsten for mange småbønder og mindsker uligheden.", giniModifier: -3.5 },
+        demokrati: { feedback: "Stærkere demokrati fører ofte til love, der styrker arbejdstagerrettigheder og sociale sikkerhedsnet, hvilket mindsker uligheden.", giniModifier: -5.0 },
+        mereBistand: { feedback: "Velanvendt ulandsbistand i f.eks. sundhed og fattigdomsbekæmpelse kan give et direkte løft til de fattigste og reducere uligheden.", giniModifier: -4.5 },
+        offentligInvest: { feedback: "Offentlige investeringer i infrastruktur og uddannelse skaber jobs for en bred del af befolkningen og styrker middelklassen.", giniModifier: -4.0 },
+
+        // Scenarier der øger ulighed (lægger point til Gini)
+        landgrabbing: { feedback: "Når småbønder mister deres jord, falder de i fattigdom, mens profitten tilfalder en lille elite. Dette øger uligheden markant.", giniModifier: +5.0 },
+        korruption: { feedback: "Korruption omdirigerer midler, der skulle have hjulpet samfundet, til en lille elite. De rigeste bliver markant rigere, og uligheden vokser.", giniModifier: +7.0 },
+        fdi: { feedback: "Udenlandske investeringer skaber nye jobs, men gavner ofte faglært arbejdskraft og kapitalejere mest. Dette kan øge indkomstforskellene.", giniModifier: +3.0 },
+        mindreBistand: { feedback: "Mindre ulandsbistand kan betyde nedskæringer i sociale programmer, der støtter de fattigste, hvilket øger uligheden.", giniModifier: +4.0 },
     };
 
     function createInitialPopulation(giniValue) {
-        const gini = giniValue / 100;
+        // Sikrer at Gini er inden for et fornuftigt interval for eksponent-beregningen
+        const gini = Math.max(0.1, Math.min(giniValue / 100, 0.9));
         const exponent = (1 + gini) / (1 - gini);
         let incomes = [];
         for (let i = 1; i <= 100; i++) {
@@ -520,21 +514,29 @@
 
     function resetSimulation(initialGiniData) {
         const giniToUse = initialGiniData && initialGiniData.value ? initialGiniData.value : 47;
-        currentIncomes = createInitialPopulation(giniToUse);
-        plotSimulationLorenz(currentIncomes, giniToUse);
+        const initialIncomes = createInitialPopulation(giniToUse);
+        plotSimulationLorenz(initialIncomes, giniToUse);
         document.getElementById('scenarioFeedback').textContent = "Vælg et scenarie for at se, hvordan det påvirker indkomstfordelingen.";
     }
 
     document.getElementById('simulationControls').addEventListener('click', (e) => {
         if (e.target.tagName === 'BUTTON') {
-            const scenario = e.target.dataset.scenario;
-            if (scenario === 'reset') {
+            const scenarioKey = e.target.dataset.scenario;
+            if (scenarioKey === 'reset') {
                 resetSimulation(initialCountryGiniData);
-            } else if (scenarios[scenario]) {
-                currentIncomes.sort((a, b) => a - b);
-                currentIncomes = scenarios[scenario].apply(currentIncomes);
-                plotSimulationLorenz(currentIncomes);
-                document.getElementById('scenarioFeedback').textContent = scenarios[scenario].feedback;
+            } else if (scenarios[scenarioKey]) {
+                const scenario = scenarios[scenarioKey];
+                const initialGini = (initialCountryGiniData && initialCountryGiniData.value) ? initialCountryGiniData.value : 47;
+                
+                // Beregn det nye Gini-mål
+                const newGini = initialGini + scenario.giniModifier;
+                
+                // Generer en ny befolkning baseret på det nye Gini-mål
+                const modifiedIncomes = createInitialPopulation(newGini);
+                
+                // Plot resultatet og vis det nye Gini-tal
+                plotSimulationLorenz(modifiedIncomes, newGini);
+                document.getElementById('scenarioFeedback').textContent = scenario.feedback;
             }
         }
     });
@@ -572,7 +574,7 @@
             }
         }
         const meanIncome = totalIncome / n;
-        const gini = sumOfDiffs / (2 * n * n * meanIncome);
+        const gini = meanIncome > 0 ? sumOfDiffs / (2 * n * n * meanIncome) : 0;
         return { lorenzPoints, gini };
     }
 
