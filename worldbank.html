@@ -56,6 +56,36 @@
     <canvas id="chart"></canvas>
   </div>
 
+  <div id="giniSection" style="display: none; margin-top: 2rem; max-width: 700px;">
+    <h2>Analyse af Indkomstulighed (Land 1)</h2>
+
+    <div id="giniActualData">
+      <p id="giniIntroText">Henter Gini-data...</p>
+      <canvas id="lorenzChartActual" height="200"></canvas>
+    </div>
+
+    <div id="giniSimulation" style="margin-top: 2rem; border-top: 2px solid #eee; padding-top: 1rem;">
+      <h3>Sandkasse: Test udviklingsscenarier</h3>
+      <p>Hvordan ville følgende hændelser påvirke uligheden i et land som det valgte? (modellen er generisk)</p>
+      <div id="simulationControls" style="display: flex; flex-wrap: wrap; gap: 0.5em; margin-bottom: 1rem;">
+    <button data-scenario="mikrolaan">Succes med mikrolån 📈</button>
+    <button data-scenario="uddannelse">Investering i grunduddannelse 🧑‍🏫</button>
+    <button data-scenario="fairtrade">Fairtrade-aftale for bønder ☕</button>
+    <button data-scenario="landgrabbing" style="background-color: #fee;">Opkøb af landbrugsjord 📉</button>
+    <button data-scenario="korruption" style="background-color: #fee;">Korruption med ulandsbistand 💰</button>
+
+    <button data-scenario="fdi">Flere udenlandske investeringer (FDI) 🏭</button>
+    <button data-scenario="demokrati">Mere demokratisk lovgivning 🗳️</button>
+    <button data-scenario="mereBistand">Mere ulandsbistand (effektiv) 💸</button>
+    <button data-scenario="mindreBistand" style="background-color: #fee;">Mindre ulandsbistand 💔</button>
+    <button data-scenario="offentligInvest">Flere offentlige investeringer 🏗️</button>
+
+    <button data-scenario="reset">Nulstil model</button>
+</div>
+      <canvas id="lorenzChartSimulation" height="200"></canvas>
+      <p id="scenarioFeedback" style="min-height: 4em; background-color: #f8f8f8; padding: 0.5em; border-radius: 4px;"></p>
+    </div>
+  </div>
   <div id="yearModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -115,7 +145,7 @@
       { code: 'SP.DYN.IMRT.IN',     name: 'Spædbørnsdødelighed (pr. 1.000)' },
       { code: 'SH.DYN.MORT',        name: 'Dødelighed under 5 år (pr. 1.000)' },
       { code: 'SP.DYN.TFRT.IN',     name: 'Fertilitetsraten (fødsler/kvinde)' },
-      { code: 'SL.AGR.EMPL.ZS',     name: 'Antal beskæftigede i primære erhverv' },
+      { code: 'SL.AGR.EMPL.ZS',     name: 'Antal beskæftige i primære erhverv' },
       { code: 'NV.AGR.TOTL.ZS',     name: 'Primære erhvervs værditilvækst (% af BNP)' },
       { code: 'SL.IND.EMPL.ZS',     name: 'Antal beskæftigede i det sekundære erhverv' },
       { code: 'NV.IND.TOTL.ZS',     name: 'Sekundær erhvervs værditilvækst (% af BNP)' },
@@ -138,11 +168,12 @@
       { code: 'SH.H2O.SMDW.UR.ZS',  name: 'Sikkert forvaltet drikkevand, byer (%)' }
     ];
 
-    // Alle år fra 1960–2024
+    // Globale variabler
     let years = [];
     for (let y = 1960; y <= 2024; y++) years.push(String(y));
     let selectedYears = [...years];
     let latest1, latest2, graphChart;
+    let initialCountryGiniData = null; // Gemmer landets Gini for nulstillingsknap
 
     // Load page content
     document.addEventListener('DOMContentLoaded', () => {
@@ -215,7 +246,7 @@
       document.getElementById('clearAllYears').onclick = () => { selectedYears = []; renderList(search.value); };
       search.oninput = () => renderList(search.value);
       document.getElementById('applyYears').onclick = () => {
-        selectedYears = Array.from(list.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+        selectedYears = Array.from(list.querySelectorAll('input[type=\"checkbox\"]:checked')).map(cb => cb.value);
         modal.style.display = 'none';
       };
       window.onclick = e => { if (e.target === modal) modal.style.display = 'none'; };
@@ -228,19 +259,19 @@
       await Promise.all(indicators.map(ind =>
         fetch(apiBase + country + '/indicator/' + ind.code + params)
           .then(r => r.json())
-          .then(json => json[1] && json[1].forEach(o => { // <-- Check for json[1]
+          .then(json => json[1] && json[1].forEach(o => {
             if (selectedYears.includes(o.date)) dataMap[ind.code][o.date] = +o.value;
           }))
       ));
       return { years: selectedYears, dataMap };
     }
 
-    // 3) Byg tabel
+    // Byg tabel
     function buildTable(p) {
       const tbl = document.createElement('table');
       const yearsToShow = p.years && p.years.length ? p.years : selectedYears;
       const head = tbl.createTHead().insertRow();
-      head.insertCell().textContent = 'Nøgletal \ År';
+      head.insertCell().textContent = 'Nøgletal \\ År';
       yearsToShow.forEach(y => head.insertCell().textContent = y);
       const body = tbl.createTBody();
       indicators.forEach(ind => {
@@ -253,11 +284,11 @@
       return tbl;
     }
 
-    // 4) Byg sammenligning
+    // Byg sammenligning
     function buildComparison(p1, p2, c1, c2) {
       const tbl = document.createElement('table');
       const head = tbl.createTHead();
-      const r1 = head.insertRow(); r1.insertCell().rowSpan=2; r1.cells[0].textContent='Nøgletal \ År';
+      const r1 = head.insertRow(); r1.insertCell().rowSpan=2; r1.cells[0].textContent='Nøgletal \\ År';
       p1.years.forEach(y=>{ const c=r1.insertCell(); c.colSpan=2; c.textContent=y; });
       const r2 = head.insertRow(); p1.years.forEach(_=>{ r2.insertCell().textContent=c1; r2.insertCell().textContent=c2; });
       const body = tbl.createTBody();
@@ -272,9 +303,9 @@
       return tbl;
     }
 
-    // 5) Download Excel
+    // Download Excel
     function downloadExcel() {
-      const aoa = [['Nøgletal \ År', ...latest1.years]];
+      const aoa = [['Nøgletal \\ År', ...latest1.years]];
       indicators.forEach(ind=>{
         const row=[ind.name]; latest1.years.forEach(y=>{ const v=latest1.dataMap[ind.code][y]; row.push(v!=null?+v.toFixed(2):null); });
         aoa.push(row);
@@ -285,32 +316,27 @@
       XLSX.writeFile(wb, `WorldBank_${document.getElementById('country1').value}.xlsx`);
     }
 
-    // 6) Populate grafer
+    // Populate grafer
     function populateGraphControls() {
       const fi  = document.getElementById('filterInput');
       const iS  = document.getElementById('indicatorSelect');
       const yS  = document.getElementById('yearSelect');
-      // Enable controls
       [fi, iS, yS,
        document.getElementById('last5Btn'),
        document.getElementById('last10Btn'),
        document.getElementById('plotBtn')]
         .forEach(el => el.disabled = false);
 
-      // Populate indicators
       iS.innerHTML = '';
       indicators.forEach(ind => iS.append(new Option(ind.name, ind.code)));
-      // Populate years from selectedYears
       yS.innerHTML = '';
       selectedYears.forEach(y => yS.append(new Option(y, y)));
 
-      // Filter indicators
       fi.oninput = () => {
         const val = fi.value.toLowerCase();
         Array.from(iS.options).forEach(o => o.hidden = !o.text.toLowerCase().includes(val));
       };
 
-      // Quick-select recent years
       document.getElementById('last5Btn').onclick = () => {
         const rec = selectedYears.slice(-5);
         Array.from(yS.options).forEach(o => o.selected = rec.includes(o.value));
@@ -320,12 +346,11 @@
         Array.from(yS.options).forEach(o => o.selected = rec.includes(o.value));
       };
 
-      // Plot graph
       document.getElementById('plotBtn').onclick = () => {
         const selI = Array.from(iS.selectedOptions).map(o => o.value);
         const selY = Array.from(yS.selectedOptions).map(o => o.value);
         if (!selI.length || !selY.length) return alert('Vælg mindst én indikator og ét år.');
-        
+
         const datasets = selI.map(code => ({
           label: indicators.find(i => i.code === code).name,
           data: selY.map(y => latest1.dataMap[code] ? latest1.dataMap[code][y] : null),
@@ -338,20 +363,16 @@
         graphChart = new Chart(ctx, {
           type: 'line',
           data: { labels: selY, datasets },
-          options: { 
-            responsive: true, 
+          options: {
+            responsive: true,
             scales: { y: { beginAtZero: false } },
             plugins: {
               tooltip: {
                 callbacks: {
                   label: function(context) {
                     let label = context.dataset.label || '';
-                    if (label) {
-                      label += ': ';
-                    }
-                    if (context.parsed.y !== null) {
-                      label += context.parsed.y.toFixed(2);
-                    }
+                    if (label) { label += ': '; }
+                    if (context.parsed.y !== null) { label += context.parsed.y.toFixed(2); }
                     return label;
                   }
                 }
@@ -362,21 +383,231 @@
       };
     };
 
-      // Bind Download Excel
-      document.getElementById('btnExcel').onclick = () => {
+    // Bind event handlers
+    document.getElementById('btnExcel').onclick = () => {
         if (!latest1) return alert('Ingen data at downloade');
         downloadExcel();
-      };
+    };
 
-      // Bind Lav grafer
-      document.getElementById('btnGraphs').onclick = () => {
+    document.getElementById('btnGraphs').onclick = () => {
         if (!latest1) return alert('Hent data først');
         document.getElementById('graphSection').style.display = 'block';
+        document.getElementById('giniSection').style.display = 'none';
         populateGraphControls();
-      };
+    };
     });
+
+    // START: GINI-SIMULATOR KODE
+    let lorenzActualChart, lorenzSimChart, currentIncomes;
+
+    function showGiniSection() {
+        if (!latest1) {
+            alert('Hent data for et land først.');
+            return;
+        }
+        document.getElementById('giniSection').style.display = 'block';
+        document.getElementById('graphSection').style.display = 'none';
+
+        const countryName = document.getElementById('country1').options[document.getElementById('country1').selectedIndex].text;
+        const introText = document.getElementById('giniIntroText');
+
+        const findLatestValue = (indicatorData) => {
+            if (!indicatorData) return { value: null, year: null };
+            const years = Object.keys(indicatorData).sort().reverse();
+            for (const year of years) {
+                if (indicatorData[year] !== null && indicatorData[year] > 0) {
+                    return { value: indicatorData[year], year };
+                }
+            }
+            return { value: null, year: null };
+        };
+
+        const giniData = findLatestValue(latest1.dataMap['SI.POV.GINI']);
+        initialCountryGiniData = giniData; // Gem landets Gini for "Nulstil" knap
+
+        const bottom10 = findLatestValue(latest1.dataMap['SI.DST.FRST.10']);
+        const bottom20 = findLatestValue(latest1.dataMap['SI.DST.FRST.20']);
+        const top20 = findLatestValue(latest1.dataMap['SI.DST.05TH.20']);
+        const top10 = findLatestValue(latest1.dataMap['SI.DST.10TH.10']);
+
+        if (giniData.value !== null) {
+            let text = `Senest målte Gini-koefficient for ${countryName} er ${giniData.value.toFixed(2)} (${giniData.year}). `;
+            text += (bottom10.value && bottom20.value && top10.value && top20.value)
+                ? `Lorenz-kurven er baseret på detaljerede indkomstfordelingsdata.`
+                : `Detaljerede indkomstfordelingsdata mangler, så Lorenz-kurven er en approksimation baseret på Gini-koefficienten.`;
+            introText.textContent = text;
+            plotActualLorenz(giniData.value, bottom10.value, bottom20.value, top10.value, top20.value);
+        } else {
+            introText.textContent = `Der er ingen tilgængelige Gini-data for ${countryName}. Simulatoren nedenfor bruger en generisk model.`;
+            if (lorenzActualChart) lorenzActualChart.destroy();
+        }
+
+        // Start simulationen med landets basis-ulighed
+        resetSimulation(initialCountryGiniData);
+    }
+
+    function plotActualLorenz(gini, bottom10, bottom20, top10, top20) {
+      if (lorenzActualChart) lorenzActualChart.destroy();
+      const ctx = document.getElementById('lorenzChartActual').getContext('2d');
+      let lorenzData;
+
+      if (bottom10 != null && bottom20 != null && top10 != null && top20 != null) {
+          const interpolate = (p_target, p1, l1, p2, l2) => l1 + ((l2 - l1) / (p2 - p1)) * (p_target - p1);
+          lorenzData = [0, bottom10, bottom20];
+          for(let p = 30; p <= 70; p += 10) {
+              lorenzData.push(interpolate(p, 20, bottom20, 80, 100 - top20));
+          }
+          lorenzData.push(100 - top20, 100 - top10, 100);
+      } else {
+          lorenzData = calculateLorenzFromGini(gini);
+      }
+
+      lorenzActualChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: Array.from({ length: 11 }, (_, i) => i * 10),
+          datasets: [
+            { label: 'Perfekt lighed', data: Array.from({ length: 11 }, (_, i) => i * 10), borderColor: 'grey', borderDash: [5, 5], pointRadius: 0, fill: false },
+            { label: 'Faktisk Lorenz-kurve', data: lorenzData, borderColor: 'blue', backgroundColor: 'rgba(0, 0, 255, 0.1)', fill: 0, tension: 0.4 }
+          ]
+        },
+        options: chartOptions('Faktisk indkomstfordeling', 'Kumulativ % af befolkning', 'Kumulativ % af indkomst')
+      });
+    }
+
+    function plotSimulationLorenz(incomes, initialGini = null) {
+        if (lorenzSimChart) lorenzSimChart.destroy();
+        const ctx = document.getElementById('lorenzChartSimulation').getContext('2d');
+        const { lorenzPoints, gini: calculatedGini } = calculateLorenzAndGiniFromIncomes(incomes);
+
+        const displayGini = initialGini !== null ? initialGini / 100 : calculatedGini;
+
+        lorenzSimChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: lorenzPoints.map((_, i) => Math.round(i * (100 / (lorenzPoints.length - 1)))),
+                datasets: [
+                    { label: 'Perfekt lighed', data: lorenzPoints.map((_, i) => i * (100 / (lorenzPoints.length - 1))), borderColor: 'grey', borderDash: [5, 5], pointRadius: 0, fill: false },
+                    { label: `Simuleret Lorenz-kurve (Gini: ${displayGini.toFixed(2)})`, data: lorenzPoints, borderColor: 'red', backgroundColor: 'rgba(255, 0, 0, 0.1)', fill: 0, tension: 0.4 }
+                ]
+            },
+            options: chartOptions('Simuleret indkomstfordeling', 'Kumulativ % af befolkning', 'Kumulativ % af indkomst')
+        });
+    }
+
+    const scenarios = {
+        mikrolaan: { apply: incomes => { const n = Math.floor(incomes.length * 0.2); for (let i=0; i<n; i++) incomes[i] *= 1.25; return incomes; }, feedback: "Mikrolån styrker små iværksættere blandt de fattigste. Dette løfter bunden af indkomstfordelingen og mindsker uligheden." },
+        uddannelse: { apply: incomes => { const n = Math.floor(incomes.length * 0.5); for (let i=10; i<n; i++) incomes[i] *= 1.15; return incomes; }, feedback: "Bedre uddannelse giver adgang til jobs med højere løn, hvilket især gavner den lavere middelklasse og reducerer uligheden." },
+        fairtrade: { apply: incomes => { const n = Math.floor(incomes.length * 0.4); for (let i=5; i<n; i++) incomes[i] *= 1.20; return incomes; }, feedback: "Fairtrade-aftaler sikrer en mere retfærdig pris for landbrugsvarer. Det øger indkomsten for mange småbønder og mindsker uligheden." },
+        landgrabbing: { apply: incomes => { const b = Math.floor(incomes.length * 0.1), t = Math.ceil(incomes.length * 0.95); for (let i=0; i<b; i++) incomes[i] *= 0.7; for (let i=t; i<incomes.length; i++) incomes[i] *= 1.1; return incomes; }, feedback: "Når småbønder mister deres jord, falder de i fattigdom, mens profitten tilfalder en lille elite. Dette øger uligheden markant." },
+        korruption: { apply: incomes => { const t = Math.ceil(incomes.length * 0.99); for (let i=t; i<incomes.length; i++) incomes[i] *= 1.5; return incomes; }, feedback: "Korruption omdirigerer midler, der skulle have hjulpet samfundet, til en lille elite. De rigeste bliver markant rigere, og uligheden vokser." },
+        fdi: { apply: incomes => { const t = Math.floor(incomes.length * 0.8), m = Math.floor(incomes.length * 0.4); for (let i=0; i<incomes.length; i++) { if (i>=t) incomes[i]*=1.15; else if (i>=m) incomes[i]*=1.05; } return incomes; }, feedback: "Udenlandske investeringer skaber nye jobs, men gavner ofte faglært arbejdskraft og kapitalejere mest. Dette kan øge indkomstforskellene." },
+        demokrati: { apply: incomes => { const n = Math.floor(incomes.length * 0.6); for (let i=0; i<n; i++) incomes[i] *= 1.12; return incomes; }, feedback: "Stærkere demokrati fører ofte til love, der styrker arbejdstagerrettigheder og sociale sikkerhedsnet, hvilket mindsker uligheden." },
+        mereBistand: { apply: incomes => { const n = Math.floor(incomes.length * 0.25); for (let i=0; i<n; i++) incomes[i] *= 1.20; return incomes; }, feedback: "Velanvendt ulandsbistand i f.eks. sundhed og fattigdomsbekæmpelse kan give et direkte løft til de fattigste og reducere uligheden." },
+        mindreBistand: { apply: incomes => { const n = Math.floor(incomes.length * 0.25); for (let i=0; i<n; i++) incomes[i] *= 0.85; return incomes; }, feedback: "Mindre ulandsbistand kan betyde nedskæringer i sociale programmer, der støtter de fattigste, hvilket øger uligheden." },
+        offentligInvest: { apply: incomes => { const s = Math.floor(incomes.length * 0.1), e = Math.floor(incomes.length * 0.8); for (let i=s; i<e; i++) incomes[i] *= 1.15; return incomes; }, feedback: "Offentlige investeringer i infrastruktur og uddannelse skaber jobs for en bred del af befolkningen og styrker middelklassen." }
+    };
+
+    function createInitialPopulation(giniValue) {
+        const gini = giniValue / 100;
+        const exponent = (1 + gini) / (1 - gini);
+        let incomes = [];
+        for (let i = 1; i <= 100; i++) {
+            incomes.push(Math.pow(i, exponent));
+        }
+        return incomes;
+    }
+
+    function resetSimulation(initialGiniData) {
+        const giniToUse = initialGiniData && initialGiniData.value ? initialGiniData.value : 47;
+        currentIncomes = createInitialPopulation(giniToUse);
+        plotSimulationLorenz(currentIncomes, giniToUse);
+        document.getElementById('scenarioFeedback').textContent = "Vælg et scenarie for at se, hvordan det påvirker indkomstfordelingen.";
+    }
+
+    document.getElementById('simulationControls').addEventListener('click', (e) => {
+        if (e.target.tagName === 'BUTTON') {
+            const scenario = e.target.dataset.scenario;
+            if (scenario === 'reset') {
+                resetSimulation(initialCountryGiniData);
+            } else if (scenarios[scenario]) {
+                currentIncomes.sort((a, b) => a - b);
+                currentIncomes = scenarios[scenario].apply(currentIncomes);
+                plotSimulationLorenz(currentIncomes);
+                document.getElementById('scenarioFeedback').textContent = scenarios[scenario].feedback;
+            }
+        }
+    });
+
+    function calculateLorenzFromGini(giniRaw) {
+        const gini = giniRaw / 100;
+        const points = 11;
+        const lorenz = [];
+        for (let i = 0; i < points; i++) {
+            const p = i / (points - 1);
+            if (p === 0) { lorenz.push(0); continue; }
+            const exponent = (1 + gini) / (1 - gini);
+            lorenz.push(Math.pow(p, exponent) * 100);
+        }
+        return lorenz;
+    }
+
+    function calculateLorenzAndGiniFromIncomes(incomes) {
+        const sortedIncomes = [...incomes].sort((a, b) => a - b);
+        const totalIncome = sortedIncomes.reduce((sum, income) => sum + income, 0);
+        if (totalIncome === 0) return { lorenzPoints: Array(101).fill(0), gini: 0 };
+
+        const n = sortedIncomes.length;
+        let cumulativeIncome = 0;
+        let lorenzPoints = [0];
+        for (let i = 0; i < n; i++) {
+            cumulativeIncome += sortedIncomes[i];
+            lorenzPoints.push((cumulativeIncome / totalIncome) * 100);
+        }
+
+        let sumOfDiffs = 0;
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j < n; j++) {
+                sumOfDiffs += Math.abs(sortedIncomes[i] - sortedIncomes[j]);
+            }
+        }
+        const meanIncome = totalIncome / n;
+        const gini = sumOfDiffs / (2 * n * n * meanIncome);
+        return { lorenzPoints, gini };
+    }
+
+    function chartOptions(title, xLabel, yLabel) {
+      return {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          title: { display: true, text: title },
+          legend: { position: 'bottom' }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: xLabel },
+            ticks: { callback: function(value) { return this.getLabelForValue(value) + '%'; } }
+          },
+          y: {
+            title: { display: true, text: yLabel },
+            min: 0,
+            max: 100,
+            ticks: { callback: value => value + '%' }
+          }
+        }
+      };
+    }
+
+    const controlsDiv = document.querySelector('.controls');
+    const giniButton = document.createElement('button');
+    giniButton.id = 'btnGini';
+    giniButton.textContent = 'Analyser ulighed';
+    controlsDiv.insertBefore(giniButton, document.getElementById('btnGraphs').nextSibling);
+    document.getElementById('btnGini').onclick = showGiniSection;
+
+    // SLUT: GINI-SIMULATOR KODE
   </script>
 </body>
-
 </html>
 
