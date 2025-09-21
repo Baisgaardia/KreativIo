@@ -464,27 +464,25 @@
       });
     }
 
-    function plotSimulationLorenz(incomes, newGiniValue = null) {
+    function plotSimulationLorenz(giniValue) {
         if (lorenzSimChart) lorenzSimChart.destroy();
         const ctx = document.getElementById('lorenzChartSimulation').getContext('2d');
-        const { lorenzPoints, gini: calculatedGini } = calculateLorenzAndGiniFromIncomes(incomes);
-
-        const displayGini = newGiniValue !== null ? newGiniValue / 100 : calculatedGini;
+        
+        const lorenzData = calculateLorenzFromGini(giniValue);
 
         lorenzSimChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: lorenzPoints.map((_, i) => Math.round(i * (100 / (lorenzPoints.length - 1)))),
+                labels: Array.from({ length: 11 }, (_, i) => i * 10),
                 datasets: [
-                    { label: 'Perfekt lighed', data: lorenzPoints.map((_, i) => i * (100 / (lorenzPoints.length - 1))), borderColor: 'grey', borderDash: [5, 5], pointRadius: 0, fill: false },
-                    { label: `Simuleret Lorenz-kurve (Gini: ${displayGini.toFixed(2)})`, data: lorenzPoints, borderColor: 'red', backgroundColor: 'rgba(255, 0, 0, 0.1)', fill: 0, tension: 0.4 }
+                    { label: 'Perfekt lighed', data: Array.from({ length: 11 }, (_, i) => i * 10), borderColor: 'grey', borderDash: [5, 5], pointRadius: 0, fill: false },
+                    { label: `Simuleret Lorenz-kurve (Gini: ${(giniValue / 100).toFixed(2)})`, data: lorenzData, borderColor: 'red', backgroundColor: 'rgba(255, 0, 0, 0.1)', fill: 0, tension: 0.4 }
                 ]
             },
             options: chartOptions('Simuleret indkomstfordeling', 'Kumulativ % af befolkning', 'Kumulativ % af indkomst')
         });
     }
 
-    // ENDELIG, KORRIGERET OG FORENKLET LOGIK FOR SCENARIER
     const scenarios = {
         // Scenarier der mindsker ulighed (trækker point fra Gini)
         mikrolaan: { feedback: "Mikrolån styrker små iværksættere blandt de fattigste. Dette løfter bunden af indkomstfordelingen og mindsker uligheden.", giniModifier: -3.0 },
@@ -501,21 +499,9 @@
         mindreBistand: { feedback: "Mindre ulandsbistand kan betyde nedskæringer i sociale programmer, der støtter de fattigste, hvilket øger uligheden.", giniModifier: +4.0 },
     };
 
-    function createInitialPopulation(giniValue) {
-        // Sikrer at Gini er inden for et fornuftigt interval for eksponent-beregningen
-        const gini = Math.max(0.1, Math.min(giniValue / 100, 0.9));
-        const exponent = (1 + gini) / (1 - gini);
-        let incomes = [];
-        for (let i = 1; i <= 100; i++) {
-            incomes.push(Math.pow(i, exponent));
-        }
-        return incomes;
-    }
-
     function resetSimulation(initialGiniData) {
-        const giniToUse = initialGiniData && initialGiniData.value ? initialGiniData.value : 47;
-        const initialIncomes = createInitialPopulation(giniToUse);
-        plotSimulationLorenz(initialIncomes, giniToUse);
+        const giniToUse = initialGiniData && initialGiniData.value ? initialGiniData.value : 47; // Default til 47 hvis ingen data
+        plotSimulationLorenz(giniToUse);
         document.getElementById('scenarioFeedback').textContent = "Vælg et scenarie for at se, hvordan det påvirker indkomstfordelingen.";
     }
 
@@ -529,13 +515,11 @@
                 const initialGini = (initialCountryGiniData && initialCountryGiniData.value) ? initialCountryGiniData.value : 47;
                 
                 // Beregn det nye Gini-mål
-                const newGini = initialGini + scenario.giniModifier;
+                let newGini = initialGini + scenario.giniModifier;
+                newGini = Math.max(0, Math.min(100, newGini)); // Sikrer at Gini er mellem 0 og 100
                 
-                // Generer en ny befolkning baseret på det nye Gini-mål
-                const modifiedIncomes = createInitialPopulation(newGini);
-                
-                // Plot resultatet og vis det nye Gini-tal
-                plotSimulationLorenz(modifiedIncomes, newGini);
+                // Plot resultatet med den nye Gini-værdi
+                plotSimulationLorenz(newGini);
                 document.getElementById('scenarioFeedback').textContent = scenario.feedback;
             }
         }
@@ -548,34 +532,11 @@
         for (let i = 0; i < points; i++) {
             const p = i / (points - 1);
             if (p === 0) { lorenz.push(0); continue; }
+            // En almindelig anvendt formel til at approksimere Lorenz-kurven fra Gini
             const exponent = (1 + gini) / (1 - gini);
             lorenz.push(Math.pow(p, exponent) * 100);
         }
         return lorenz;
-    }
-
-    function calculateLorenzAndGiniFromIncomes(incomes) {
-        const sortedIncomes = [...incomes].sort((a, b) => a - b);
-        const totalIncome = sortedIncomes.reduce((sum, income) => sum + income, 0);
-        if (totalIncome === 0) return { lorenzPoints: Array(101).fill(0), gini: 0 };
-
-        const n = sortedIncomes.length;
-        let cumulativeIncome = 0;
-        let lorenzPoints = [0];
-        for (let i = 0; i < n; i++) {
-            cumulativeIncome += sortedIncomes[i];
-            lorenzPoints.push((cumulativeIncome / totalIncome) * 100);
-        }
-
-        let sumOfDiffs = 0;
-        for (let i = 0; i < n; i++) {
-            for (let j = 0; j < n; j++) {
-                sumOfDiffs += Math.abs(sortedIncomes[i] - sortedIncomes[j]);
-            }
-        }
-        const meanIncome = totalIncome / n;
-        const gini = meanIncome > 0 ? sumOfDiffs / (2 * n * n * meanIncome) : 0;
-        return { lorenzPoints, gini };
     }
 
     function chartOptions(title, xLabel, yLabel) {
@@ -612,4 +573,3 @@
   </script>
 </body>
 </html>
-
