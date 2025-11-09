@@ -39,6 +39,8 @@
     <button id="btnFetch">Hent data</button>
     <button id="btnExcel" disabled>Download Excel (Land 1)</button>
     <button id="btnGraphs">Lav grafer</button>
+<button id="btnGlobalExplorer" type="button">Global Udforsker</button>
+<button id="btnCorrelation" type="button">Korrelations-analyse</button>
   </div>
 
   <div id="tableContainer" class="table-container"></div>
@@ -86,6 +88,42 @@
       <p id="scenarioFeedback" style="min-height: 4em; background-color: #f8f8f8; padding: 0.5em; border-radius: 4px;"></p>
     </div>
   </div>
+<div id="correlationSection" style="display: none; margin-top: 2rem; max-width: 900px;">
+    <h2>Korrelations-analyse (Tidsserie)</h2>
+    <p>Undersøg sammenhængen mellem to nøgletal for et enkelt land over en given årrække.</p>
+    
+    <div class="controls" id="correlationControls" style="align-items: flex-start; gap: 1.5rem;">
+      <div style="display: flex; flex-direction: column; gap: .5rem;">
+        <label for="correlationCountry">1. Vælg land:</label>
+        <select id="correlationCountry" style="width: 250px;"></select>
+        
+        <label for="correlationYearFrom">3. Vælg årrække:</label>
+        <div>
+          <input type="text" id="correlationYearFrom" value="1990" style="width: 60px;">
+          <span> til </span>
+          <input type="text" id="correlationYearTo" value="2023" style="width: 60px;">
+        </div>
+      </div>
+      
+      <div style="display: flex; flex-direction: column; gap: .5rem; flex-grow: 1;">
+        <label for="correlationX">2. Vælg X-akse (uafhængig variabel):</label>
+        <select id="correlationX" style="width: 100%;"></select>
+        
+        <label for="correlationY">2. Vælg Y-akse (afhængig variabel):</label>
+        <select id="correlationY" style="width: 100%;"></select>
+      </div>
+
+      <button id="correlationRunBtn" type="button" style="height: 4rem; align-self: center;">Analyser</button>
+    </div>
+    
+    <div id="correlationStats" style="margin-top: 1rem; font-size: 1.2rem; text-align: center; background: #f4f4f4; padding: 1rem; border-radius: 4px; display: none;">
+      </div>
+
+    <div style="margin-top: 1rem; height: 500px; position: relative;">
+       <canvas id="correlationChart"></canvas>
+    </div>
+  </div>
+
   <div id="yearModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -103,10 +141,32 @@
       </div>
     </div>
   </div>
+<div id="explorerSection" style="display: none; margin-top: 2rem; max-width: 100%;">
+    <h2>Global Udforsker</h2>
+    <p>Find top 10 og bund 10 lande for et nøgletal, baseret på det senest tilgængelige data for hvert land.</p>
+    
+    <div class="controls" id="explorerControls">
+      <label for="explorerIndicatorSelect">Vælg nøgletal:</label>
+      <select id="explorerIndicatorSelect" style="width: 350px;"></select>
+      <button id="explorerRunBtn" type="button">Analyser</button>
+    </div>
+    
+    <div id="explorerSnapshot" style="margin-top: 1rem; font-size: 1.2rem; text-align: center; background: #f4f4f4; padding: 1rem; border-radius: 4px;">
+      Vælg et nøgletal og tryk 'Analyser'
+    </div>
 
-  <footer style="display:flex; justify-content:space-between; font-size:0.8em; margin:2rem 0 0 0;">
+    <div style="display: flex; flex-wrap: wrap; gap: 2rem; margin-top: 1rem;">
+       <div style="flex: 1; min-width: 400px; height: 400px; position: relative;">
+         <canvas id="explorerChartTop10"></canvas>
+       </div>
+       <div style="flex: 1; min-width: 400px; height: 400px; position: relative;">
+         <canvas id="explorerChartBottom10"></canvas>
+       </div>
+    </div>
+  </div>
+    <footer style="display:flex; justify-content:space-between; font-size:0.8em; margin:2rem 0 0 0;">
     <div class="left-footer" style="text-align:left;">
-      The World Bank. (2025). World Development Indicators. Hentet 25. maj 2025 fra https://api.worldbank.org/v2/country/{land}/indicator/{indikator}?format=json
+      The World Bank. (2025). World Development Indicators. Hentet d. 11 november 2025 fra https://api.worldbank.org/v2/country/{land}/indicator/{indikator}?format=json
     </div>
     <div class="right-footer" style="text-align:right;">
       &copy; Allan Baisgaard, Aalborg Handelsgymnasie, Turøgade
@@ -177,6 +237,10 @@
     let selectedYears = [...years];
     let latest1, latest2, graphChart;
     let initialCountryGiniData = null;
+// *** START RETTELSE: Gør graf-instanser globale ***
+    let explorerChartTop10Instance, explorerChartBottom10Instance;
+    let correlationChartInstance; 
+    // *** SLUT RETTELSE ***
 
     // *** ÆNDRING 1: HELE SIDENS START-LOGIK ***
     // Alt starter nu med at hente vores lokale JSON-fil
@@ -201,12 +265,44 @@
           populateCountryDropdowns(); 
           
           // Klargør "Hent data"-knappen
-          document.getElementById('btnFetch').onclick = onFetchClick;
+          
           
           // Resten af knapperne
           document.getElementById('btnExcel').onclick = downloadExcel;
           document.getElementById('btnGraphs').onclick = onGraphsClick;
           document.getElementById('btnGini').onclick = showGiniSection;
+          populateExplorerDropdown(); // 1. Fyld den nye dropdown-menu
+          
+          // 2. Tænd for "Analyser"-knappen
+          document.getElementById('explorerRunBtn').onclick = runGlobalAnalysis;
+
+          // 3. Håndter vis/skjul af sektioner
+          document.getElementById('btnGlobalExplorer').onclick = () => {
+            document.getElementById('explorerSection').style.display = 'block';
+            document.getElementById('tableContainer').innerHTML = ''; // Ryd tabel
+            document.getElementById('graphSection').style.display = 'none';
+            document.getElementById('giniSection').style.display = 'none';
+          };
+          
+          // 4. Skjul udforskeren, hvis man trykker "Hent data"
+          document.getElementById('btnFetch').onclick = () => {
+             document.getElementById('explorerSection').style.display = 'none';
+             onFetchClick(); // Kald den oprindelige funktion
+          };
+          // *** SLUT: TILFØJ DISSE 4 LINJER ***
+// *** START: TILFØJ DISSE 4 LINJER TIL KORRELATION ***
+          populateCorrelationDropdowns(); // Fyld lande/indikatorer
+          
+          document.getElementById('correlationRunBtn').onclick = runCorrelationAnalysis;
+          
+          document.getElementById('btnCorrelation').onclick = () => {
+            document.getElementById('correlationSection').style.display = 'block';
+            document.getElementById('explorerSection').style.display = 'none';
+            document.getElementById('tableContainer').innerHTML = '';
+            document.getElementById('graphSection').style.display = 'none';
+            document.getElementById('giniSection').style.display = 'none';
+          };
+          // *** SLUT: TILFØJ DISSE 4 LINJER TIL KORRELATION ***
 
           document.getElementById('tableContainer').innerHTML = ''; // Ryd "Indlæser..."
         })
@@ -455,7 +551,361 @@
         document.getElementById('giniSection').style.display = 'none';
         populateGraphControls();
     };
+// *** START: NYE FUNKTIONER TIL GLOBAL UDFORSKER (v2) ***
 
+    // Denne liste definerer de 14 nøgletal, du bad om
+    const relevantIndicatorCodes = [
+      'NY.GDP.PCAP.KD', 'NY.GDP.PCAP.PP.KD', 'SI.POV.GINI', 'SP.DYN.LE00.IN',
+      'SP.DYN.TFRT.IN', 'SP.DYN.CBRT.IN', 'SP.DYN.CDRT.IN', 'SH.MED.PHYS.ZS',
+      'SH.MED.BEDS.ZS', 'SE.COM.DURS', 'SH.STA.BRTC.ZS', 'EN.GHG.CO2.ZG.AR5',
+      'EG.ELC.ACCS.ZS', 'SH.H2O.SMDW.ZS'
+    ];
+    
+    // Globals til at styre de nye grafer
+    
+
+    // 1. Fyld dropdown-menuen (UÆNDRET)
+    function populateExplorerDropdown() {
+      const select = document.getElementById('explorerIndicatorSelect');
+      const relevantIndicators = indicators.filter(ind => 
+        relevantIndicatorCodes.includes(ind.code)
+      );
+      relevantIndicators.sort((a, b) => a.name.localeCompare(b.name));
+      
+      select.innerHTML = '';
+      select.append(new Option('– Vælg et nøgletal –', ''));
+      relevantIndicators.forEach(ind => {
+        select.append(new Option(ind.name, ind.code));
+      });
+    }
+
+    // 2. "Find nyeste værdi"-funktionen (UÆNDRET)
+    function findLatestValue(countryCode, indicatorCode) {
+      const indicatorData = worldBankData.data[countryCode]?.[indicatorCode];
+      if (!indicatorData) {
+        return null;
+      }
+      const availableYears = Object.keys(indicatorData);
+      availableYears.sort((a, b) => b - a); 
+      for (const year of availableYears) {
+        if (indicatorData[year] != null) {
+          return { value: indicatorData[year], year: year };
+        }
+      }
+      return null;
+    }
+
+    // 3. Hovedfunktionen der kører analysen (OPDATERET v3 - Sortering rettet)
+    function runGlobalAnalysis() {
+      const indicatorCode = document.getElementById('explorerIndicatorSelect').value;
+      if (!indicatorCode) {
+        alert('Vælg venligst et nøgletal.');
+        return;
+      }
+      
+      const indicatorName = worldBankData.metadata.indicators[indicatorCode];
+      
+      let allCountryData = [];
+      let totalSum = 0;
+      
+      for (const countryCode in worldBankData.metadata.countries) {
+        const latest = findLatestValue(countryCode, indicatorCode);
+        
+        if (latest) {
+          // *** ÅRET TILFØJES NU DIREKTE TIL NAVNET ***
+          allCountryData.push({
+            name: `${worldBankData.metadata.countries[countryCode]} (${latest.year})`,
+            value: latest.value
+          });
+          totalSum += latest.value;
+        }
+      }
+
+      if (allCountryData.length === 0) {
+        document.getElementById('explorerSnapshot').textContent = 
+          `Ingen data fundet for "${indicatorName}".`;
+        return;
+      }
+
+      // Beregn og vis "Snapshot"
+      const average = totalSum / allCountryData.length;
+      document.getElementById('explorerSnapshot').innerHTML = `
+        Baseret på ${allCountryData.length} lande: <br>
+        <strong>Globalt gennemsnit for "${indicatorName}": ${average.toFixed(2)}</strong>
+      `;
+
+      // Sorter listen fra højest til lavest
+      allCountryData.sort((a, b) => b.value - a.value);
+
+      // Udvælg Top 10 og Bund 10
+      const top10 = allCountryData.slice(0, 10);
+      const bund10 = allCountryData.slice(-10);
+
+      // *** START: RETTELSE AF SORTERING ***
+      drawExplorerChart(
+        'explorerChartTop10',
+        explorerChartTop10Instance,
+        top10, // Fjernet .reverse(). Nu plottes den højeste værdi øverst.
+        'Top 10 Højeste Værdier',
+        'rgba(75, 192, 192, 0.6)' // Grønlig farve
+      );
+      
+      drawExplorerChart(
+        'explorerChartBottom10',
+        explorerChartBottom10Instance,
+        bund10.reverse(), // Tilføjet .reverse(). Nu plottes den laveste værdi øverst.
+        'Bund 10 Laveste Værdier',
+        'rgba(255, 99, 132, 0.6)' // Rødlig farve
+      );
+      // *** SLUT: RETTELSE AF SORTERING ***
+    }
+
+    // 4. NY genanvendelig funktion til at tegne BEGGE grafer
+    function drawExplorerChart(canvasId, chartInstance, data, title, color) {
+      if (chartInstance) {
+        chartInstance.destroy(); // Ryd den gamle graf
+      }
+
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      
+      // Vi gemmer instansen i en global variabel, så vi kan rydde den
+      const newChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          // 'data' er vores array af {name, value} objekter
+          datasets: [{
+            data: data, 
+            backgroundColor: color,
+            // Fortæl Chart.js hvordan den skal læse vores objekter
+            parsing: {
+              xAxisKey: 'value', // Værdien skal på X-aksen
+              yAxisKey: 'name'   // Navnet (med år) skal på Y-aksen
+            }
+          }]
+        },
+        options: {
+          indexAxis: 'y', // <-- Gør grafen horisontal
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            // Tilføj titel (Top 10 / Bund 10)
+            title: {
+              display: true,
+              text: title
+            },
+            legend: {
+              display: false // Skjul "label"
+            },
+            // Tooltip viser nu "Land (År): Værdi"
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  // context.label har nu "Land (År)"
+                  // context.parsed.x har værdien
+                  return `${context.label}: ${context.parsed.x.toFixed(2)}`;
+                }
+              }
+            }
+          }
+        }
+      });
+      
+      // Opdater den globale instans-variabel
+      if (canvasId === 'explorerChartTop10') {
+        explorerChartTop10Instance = newChartInstance;
+      } else {
+        explorerChartBottom10Instance = newChartInstance;
+      }
+    }
+    // *** SLUT: NYE FUNKTIONER TIL GLOBAL UDFORSKER (v2) ***
+// *** START: NYE FUNKTIONER TIL KORRELATIONS-ANALYSE ***
+
+     // Holder styr på grafen
+
+    // 1. Fyld dropdown-menuerne (Lande og Indikatorer)
+    function populateCorrelationDropdowns() {
+      const cSelect = document.getElementById('correlationCountry');
+      const xSelect = document.getElementById('correlationX');
+      const ySelect = document.getElementById('correlationY');
+
+      cSelect.innerHTML = '<option value="">– Vælg land –</option>';
+      xSelect.innerHTML = '<option value="">– Vælg X-akse –</option>';
+      ySelect.innerHTML = '<option value="">– Vælg Y-akse –</option>';
+
+      // Fyld lande (fra global variabel)
+      const countries = worldBankData.metadata.countries;
+      const sortedCountries = Object.entries(countries)
+          .sort(([, nameA], [, nameB]) => nameA.localeCompare(nameB));
+      for (const [id, name] of sortedCountries) {
+        cSelect.append(new Option(name, id));
+      }
+
+      // Fyld indikatorer (fra global 'indicators'-liste)
+      indicators.sort((a, b) => a.name.localeCompare(b.name));
+      for (const ind of indicators) {
+        xSelect.append(new Option(ind.name, ind.code));
+        ySelect.append(new Option(ind.name, ind.code));
+      }
+    }
+
+    // 2. Kør selve analysen
+    function runCorrelationAnalysis() {
+      // Hent alle valg fra UI
+      const countryCode = document.getElementById('correlationCountry').value;
+      const xCode = document.getElementById('correlationX').value;
+      const yCode = document.getElementById('correlationY').value;
+      const yearFrom = parseInt(document.getElementById('correlationYearFrom').value);
+      const yearTo = parseInt(document.getElementById('correlationYearTo').value);
+
+      // Validering
+      if (!countryCode || !xCode || !yCode) {
+        alert("Vælg venligst et land, en X-akse og en Y-akse.");
+        return;
+      }
+      if (isNaN(yearFrom) || isNaN(yearTo) || yearFrom > yearTo) {
+        alert("Ugyldig årrække.");
+        return;
+      }
+
+      // 3. Indsaml datapunkter (din idé)
+      const datapoints = [];
+      for (let year = yearFrom; year <= yearTo; year++) {
+        const yearStr = String(year);
+        
+        // Find x og y værdier
+        const xVal = worldBankData.data[countryCode]?.[xCode]?.[yearStr];
+        const yVal = worldBankData.data[countryCode]?.[yCode]?.[yearStr];
+
+        // VIGTIGT: Kun tilføj, hvis BEGGE værdier findes for det år
+        if (xVal != null && yVal != null) {
+          datapoints.push({
+            x: xVal,
+            y: yVal,
+            year: yearStr
+          });
+        }
+      }
+
+      if (datapoints.length < 5) { // For få punkter til at lave statistik
+        alert(`Fandt kun ${datapoints.length} datapunkter. Prøv en længere årrække eller andre nøgletal.`);
+        return;
+      }
+
+      // 4. Kør matematikken
+      const stats = calculateStatistics(datapoints);
+      
+      // 5. Vis de matematiske resultater
+      const statsBox = document.getElementById('correlationStats');
+      statsBox.style.display = 'block';
+      statsBox.innerHTML = `
+        <strong>Forklaringsgrad (R²): ${(stats.rSquared * 100).toFixed(1)}%</strong> 
+        <br><small>(${datapoints.length} datapunkter fundet) - ${stats.equation}</small>
+      `;
+
+      // 6. Tegn grafen
+      drawCorrelationChart(datapoints, stats.trendline, xCode, yCode);
+    }
+
+    // 3. Hjælpefunktion til at lave matematikken (Lineær Regression)
+    function calculateStatistics(points) {
+      const n = points.length;
+      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+
+      for (const p of points) {
+        sumX += p.x;
+        sumY += p.y;
+        sumXY += p.x * p.y;
+        sumX2 += p.x * p.x;
+        sumY2 += p.y * p.y;
+      }
+
+      // Beregn R (Korrelationskoefficient)
+      const r_numerator = (n * sumXY) - (sumX * sumY);
+      const r_denominator = Math.sqrt(((n * sumX2) - (sumX * sumX)) * ((n * sumY2) - (sumY * sumY)));
+      const r = r_numerator / r_denominator;
+      
+      const rSquared = r * r;
+
+      // Beregn trendlinje (y = mx + b)
+      const slope = r_numerator / ((n * sumX2) - (sumX * sumX));
+      const intercept = (sumY / n) - (slope * (sumX / n));
+
+      // Find start/slut-punkter for trendlinjen
+      const minX = Math.min(...points.map(p => p.x));
+      const maxX = Math.max(...points.map(p => p.x));
+
+      const trendline = [
+        { x: minX, y: (slope * minX) + intercept },
+        { x: maxX, y: (slope * maxX) + intercept }
+      ];
+
+      return {
+        r: r,
+        rSquared: rSquared,
+        equation: `y = ${slope.toFixed(2)}x + ${intercept.toFixed(2)}`,
+        trendline: trendline
+      };
+    }
+
+    // 4. Funktion til at tegne scatter plot-grafen
+    function drawCorrelationChart(points, trendline, xLabel, yLabel) {
+      if (correlationChartInstance) {
+        correlationChartInstance.destroy();
+      }
+      
+      const xName = worldBankData.metadata.indicators[xLabel] || xLabel;
+      const yName = worldBankData.metadata.indicators[yLabel] || yLabel;
+
+      const ctx = document.getElementById('correlationChart').getContext('2d');
+      correlationChartInstance = new Chart(ctx, {
+        type: 'scatter', // Vigtig: Scatter plot
+        data: {
+          datasets: [
+            {
+              label: 'Datapunkter (År)',
+              data: points, // Vores (x, y, år) objekter
+              backgroundColor: 'rgba(75, 192, 192, 0.6)'
+            },
+            {
+              label: 'Trendlinje (R²)',
+              data: trendline, // De to (x, y) punkter for linjen
+              type: 'line', // Overstyr til at være en linje
+              backgroundColor: 'rgba(255, 99, 132, 0.6)',
+              borderColor: 'rgba(255, 99, 132, 1)',
+              fill: false,
+              pointRadius: 0 // Skjul punkterne på selve linjen
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              title: { display: true, text: xName }
+            },
+            y: {
+              title: { display: true, text: yName }
+            }
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  // Vores 'points' er i det første dataset
+                  if (context.datasetIndex === 0) {
+                    const p = context.raw;
+                    return `År: ${p.year} (X: ${p.x.toFixed(2)}, Y: ${p.y.toFixed(2)})`;
+                  }
+                  return "Trendlinje"; // Tooltip for trendlinjen
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+    // *** SLUT: NYE FUNKTIONER TIL KORRELATIONS-ANALYSE ***
     // START: GINI-SIMULATOR KODE (HELT UÆNDRET)
     let lorenzActualChart, lorenzSimChart;
 
