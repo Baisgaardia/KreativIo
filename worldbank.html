@@ -115,11 +115,14 @@
 
   <script>
     // Konfiguration
-    const proxyUrl = '';
-    const apiBase  = 'https://api.worldbank.org/v2/country/';
-    const params   = '?format=json&per_page=1000';
+    // const proxyUrl = ''; // IKKE LÆNGERE NØDVENDIG
+    // const apiBase  = '...'; // IKKE LÆNGERE NØDVENDIG
+    // const params   = '...'; // IKKE LÆNGERE NØDVENDIG
+    
+    // Denne globale variabel vil indeholde ALLE vores data
+    let worldBankData = {};
 
-    // Indikatorer
+    // Indikatorer (vi beholder denne, da hele app'en er bygget op om den)
     const indicators = [
       { code: 'AG.LND.TOTL.K2',    name: 'Areal (kvadratkilometer)' },
       { code: 'SP.POP.GROW',        name: 'Befolkningstilvæksten (årlig %)' },
@@ -175,48 +178,95 @@
     let latest1, latest2, graphChart;
     let initialCountryGiniData = null;
 
+    // *** ÆNDRING 1: HELE SIDENS START-LOGIK ***
+    // Alt starter nu med at hente vores lokale JSON-fil
     document.addEventListener('DOMContentLoaded', () => {
-      populateCountryDropdowns();
+      // Sæt UI op, der ikke kræver data
       initializeYearModal();
+      document.getElementById('tableContainer').innerHTML = 'Indlæser datafil...';
 
-    document.getElementById('btnFetch').onclick = () => {
+      // Start det ENESTE netværkskald: Hent den lokale fil
+      fetch('worldbank_data.json') // Sørg for at filen hedder dette!
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+          return res.json();
+        })
+        .then(data => {
+          // SUCCES! Gem data i den globale variabel
+          worldBankData = data;
+          
+          // Kør funktioner, der er afhængige af data:
+          populateCountryDropdowns(); 
+          
+          // Klargør "Hent data"-knappen
+          document.getElementById('btnFetch').onclick = onFetchClick;
+          
+          // Resten af knapperne
+          document.getElementById('btnExcel').onclick = downloadExcel;
+          document.getElementById('btnGraphs').onclick = onGraphsClick;
+          document.getElementById('btnGini').onclick = showGiniSection;
+
+          document.getElementById('tableContainer').innerHTML = ''; // Ryd "Indlæser..."
+        })
+        .catch(err => {
+          console.error("FEJL: Kunne ikke indlæse 'worldbank_data.json'", err);
+          document.getElementById('tableContainer').innerHTML = `
+            <h2 style="color:red;">KRITISK FEJL</h2>
+            <p>Kunne ikke indlæse 'worldbank_data.json'.</p>
+            <p>Sørg for, at filen er genereret af Python-scriptet og uploadet til samme mappe som denne HTML-fil.</p>`;
+        });
+    });
+
+    // *** ÆNDRING 2: NY "HENT DATA"-KNAP LOGIK ***
+    // Denne funktion erstatter den gamle anonyme .onclick
+    // Bemærk: Den er ikke "async", den kører ØJEBLIKKELIGT.
+    function onFetchClick() {
       const c1 = document.getElementById('country1').value;
       const c2 = document.getElementById('country2').value;
       if (!c1) return alert('Vælg venligst mindst ét land.');
 
-      document.getElementById('tableContainer').innerHTML = 'Henter data...';
+      document.getElementById('tableContainer').innerHTML = 'Genererer tabel...';
       const c1Name = document.getElementById('country1').options[document.getElementById('country1').selectedIndex].text;
       const c2Name = c2 ? document.getElementById('country2').options[document.getElementById('country2').selectedIndex].text : '';
 
+      // Vi fjerner alt med "Promise.all", da fetchRaw nu er øjeblikkelig
       if (c2) {
-        Promise.all([fetchRaw(c1), fetchRaw(c2)]).then(([p1, p2]) => {
-          latest1 = p1; latest2 = p2;
-          const yearsUnion = [...new Set([...p1.years, ...p2.years])].sort();
-          p1.years = yearsUnion; p2.years = yearsUnion;
-          document.getElementById('tableContainer').innerHTML = '';
-          document.getElementById('tableContainer').append(buildComparison(p1, p2, c1Name, c2Name));
-          document.getElementById('btnExcel').disabled = false;
-        });
+        const p1 = fetchRaw(c1); // Kører med det samme
+        const p2 = fetchRaw(c2); // Kører med det samme
+        
+        latest1 = p1; latest2 = p2;
+        const yearsUnion = [...new Set([...p1.years, ...p2.years])].sort();
+        p1.years = yearsUnion; p2.years = yearsUnion;
+        document.getElementById('tableContainer').innerHTML = '';
+        document.getElementById('tableContainer').append(buildComparison(p1, p2, c1Name, c2Name));
+        document.getElementById('btnExcel').disabled = false;
       } else {
-        fetchRaw(c1).then(p => {
-          latest1 = p; latest2 = null;
-          document.getElementById('tableContainer').innerHTML = '';
-          document.getElementById('tableContainer').append(buildTable(p));
-          document.getElementById('btnExcel').disabled = false;
-        });
+        const p = fetchRaw(c1); // Kører med det samme
+        
+        latest1 = p; latest2 = null;
+        document.getElementById('tableContainer').innerHTML = '';
+        document.getElementById('tableContainer').append(buildTable(p));
+        document.getElementById('btnExcel').disabled = false;
       }
     };
 
+    // *** ÆNDRING 3: populateCountryDropdowns Omskrivning ***
+    // Bruger nu data fra 'worldBankData' i stedet for at lave et netværkskald
     function populateCountryDropdowns() {
-      fetch(apiBase + 'all?format=json&per_page=300')
-        .then(r => r.json())
-        .then(json => {
-          const list = json[1].filter(c => c.region.value !== 'Aggregates');
-          list.forEach(c => {
-            document.getElementById('country1').append(new Option(c.name, c.id));
-            document.getElementById('country2').append(new Option(c.name, c.id));
-          });
-        });
+      const countries = worldBankData.metadata.countries; // Hent fra vores JSON
+      const c1Select = document.getElementById('country1');
+      const c2Select = document.getElementById('country2');
+
+      // Sorter lande alfabetisk efter navn (value)
+      const sortedCountries = Object.entries(countries)
+          .sort(([, nameA], [, nameB]) => nameA.localeCompare(nameB));
+
+      for (const [id, name] of sortedCountries) {
+        c1Select.append(new Option(name, id));
+        c2Select.append(new Option(name, id));
+      }
     }
 
     function initializeYearModal() {
@@ -248,18 +298,42 @@
       window.onclick = e => { if (e.target === modal) modal.style.display = 'none'; };
     }
 
-    async function fetchRaw(country) {
+    // *** ÆNDRING 4: fetchRaw Omskrivning ***
+    // Denne funktion er ikke længere "async". Den er øjeblikkelig.
+    // Den laver ikke netværkskald, men slår op i 'worldBankData'.
+    function fetchRaw(country) {
       const dataMap = {};
-      indicators.forEach(ind => { dataMap[ind.code] = {}; selectedYears.forEach(y => dataMap[ind.code][y] = null); });
-      await Promise.all(indicators.map(ind =>
-        fetch(apiBase + country + '/indicator/' + ind.code + params)
-          .then(r => r.json())
-          .then(json => json[1] && json[1].forEach(o => {
-            if (selectedYears.includes(o.date)) dataMap[ind.code][o.date] = +o.value;
-          }))
-      ));
+      
+      // Hent landets data fra vores globale objekt
+      // Vi tjekker, om landet overhovedet findes i vores data
+      const countryData = worldBankData.data[country] || {}; 
+
+      indicators.forEach(ind => {
+        dataMap[ind.code] = {};
+        
+        // Fyld dataMap med "null" for alle valgte år (præcis som før)
+        selectedYears.forEach(y => dataMap[ind.code][y] = null); 
+        
+        // Find data for denne specifikke indikator
+        const indicatorData = countryData[ind.code] || {};
+
+        // Fyld de værdier ind, vi rent faktisk har
+        selectedYears.forEach(y => {
+          if (indicatorData[y] != null) { // Tjek for 'not null/undefined'
+            dataMap[ind.code][y] = indicatorData[y];
+          }
+        });
+      });
+      
+      // Returner PRÆCIS den samme struktur som før
       return { years: selectedYears, dataMap };
     }
+
+    // --- INGEN ÆNDRINGER NØDVENDIGE UNDER DENNE LINJE ---
+    // Alle funktionerne nedenfor (buildTable, Gini-simulator, etc.)
+    // er UÆNDREDE, da de kun er afhængige af strukturen fra 'fetchRaw',
+    // som vi har genskabt perfekt.
+    // --- --- --- --- --- --- --- --- --- --- --- --- ---
 
     function buildTable(p) {
       const tbl = document.createElement('table');
@@ -297,6 +371,7 @@
     }
 
     function downloadExcel() {
+      if (!latest1) return alert('Ingen data at downloade');
       const aoa = [['Nøgletal \\ År', ...latest1.years]];
       indicators.forEach(ind=>{
         const row=[ind.name]; latest1.years.forEach(y=>{ const v=latest1.dataMap[ind.code][y]; row.push(v!=null?+v.toFixed(2):null); });
@@ -374,20 +449,14 @@
       };
     };
 
-    document.getElementById('btnExcel').onclick = () => {
-        if (!latest1) return alert('Ingen data at downloade');
-        downloadExcel();
-    };
-
-    document.getElementById('btnGraphs').onclick = () => {
+    function onGraphsClick() {
         if (!latest1) return alert('Hent data først');
         document.getElementById('graphSection').style.display = 'block';
         document.getElementById('giniSection').style.display = 'none';
         populateGraphControls();
     };
-    });
 
-    // START: GINI-SIMULATOR KODE
+    // START: GINI-SIMULATOR KODE (HELT UÆNDRET)
     let lorenzActualChart, lorenzSimChart;
 
     function showGiniSection() {
@@ -484,15 +553,12 @@
     }
 
     const scenarios = {
-        // Scenarier der mindsker ulighed (trækker point fra Gini)
         mikrolaan: { feedback: "Mikrolån styrker små iværksættere blandt de fattigste. Dette løfter bunden af indkomstfordelingen og mindsker uligheden.", giniModifier: -3.0 },
         uddannelse: { feedback: "Bedre uddannelse giver adgang til jobs med højere løn, hvilket især gavner den lavere middelklasse og reducerer uligheden.", giniModifier: -4.0 },
         fairtrade: { feedback: "Fairtrade-aftaler sikrer en mere retfærdig pris for landbrugsvarer. Det øger indkomsten for mange småbønder og mindsker uligheden.", giniModifier: -3.5 },
         demokrati: { feedback: "Stærkere demokrati fører ofte til love, der styrker arbejdstagerrettigheder og sociale sikkerhedsnet, hvilket mindsker uligheden.", giniModifier: -5.0 },
         mereBistand: { feedback: "Velanvendt ulandsbistand i f.eks. sundhed og fattigdomsbekæmpelse kan give et direkte løft til de fattigste og reducere uligheden.", giniModifier: -4.5 },
         offentligInvest: { feedback: "Offentlige investeringer i infrastruktur og uddannelse skaber jobs for en bred del af befolkningen og styrker middelklassen.", giniModifier: -4.0 },
-
-        // Scenarier der øger ulighed (lægger point til Gini)
         landgrabbing: { feedback: "Når småbønder mister deres jord, falder de i fattigdom, mens profitten tilfalder en lille elite. Dette øger uligheden markant.", giniModifier: +5.0 },
         korruption: { feedback: "Korruption omdirigerer midler, der skulle have hjulpet samfundet, til en lille elite. De rigeste bliver markant rigere, og uligheden vokser.", giniModifier: +7.0 },
         fdi: { feedback: "Udenlandske investeringer skaber nye jobs, men gavner ofte faglært arbejdskraft og kapitalejere mest. Dette kan øge indkomstforskellene.", giniModifier: +3.0 },
@@ -513,12 +579,8 @@
             } else if (scenarios[scenarioKey]) {
                 const scenario = scenarios[scenarioKey];
                 const initialGini = (initialCountryGiniData && initialCountryGiniData.value) ? initialCountryGiniData.value : 47;
-                
-                // Beregn det nye Gini-mål
                 let newGini = initialGini + scenario.giniModifier;
-                newGini = Math.max(0, Math.min(100, newGini)); // Sikrer at Gini er mellem 0 og 100
-                
-                // Plot resultatet med den nye Gini-værdi
+                newGini = Math.max(0, Math.min(100, newGini));
                 plotSimulationLorenz(newGini);
                 document.getElementById('scenarioFeedback').textContent = scenario.feedback;
             }
@@ -532,7 +594,6 @@
         for (let i = 0; i < points; i++) {
             const p = i / (points - 1);
             if (p === 0) { lorenz.push(0); continue; }
-            // En almindelig anvendt formel til at approksimere Lorenz-kurven fra Gini
             const exponent = (1 + gini) / (1 - gini);
             lorenz.push(Math.pow(p, exponent) * 100);
         }
@@ -567,7 +628,7 @@
     giniButton.id = 'btnGini';
     giniButton.textContent = 'Analyser ulighed';
     controlsDiv.insertBefore(giniButton, document.getElementById('btnGraphs').nextSibling);
-    document.getElementById('btnGini').onclick = showGiniSection;
+    // (Den oprindelige .onclick-handler for Gini er allerede sat ovenfor)
 
     // SLUT: GINI-SIMULATOR KODE
   </script>
