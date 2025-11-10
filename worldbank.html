@@ -166,7 +166,7 @@
   </div>
     <footer style="display:flex; justify-content:space-between; font-size:0.8em; margin:2rem 0 0 0;">
     <div class="left-footer" style="text-align:left;">
-      The World Bank. (2025). World Development Indicators (WB_WDI). Data hentet via Data360 API (data360.worldbank.org) den 9. november 2025.
+      The World Bank. (2025). World Development Indicators. Hentet d. 11 november 2025 fra https://api.worldbank.org/v2/country/{land}/indicator/{indikator}?format=json
     </div>
     <div class="right-footer" style="text-align:right;">
       &copy; Allan Baisgaard, Aalborg Handelsgymnasie, Turøgade
@@ -740,9 +740,13 @@
         cSelect.append(new Option(name, id));
       }
 
-      // Fyld indikatorer (fra global 'indicators'-liste)
-      indicators.sort((a, b) => a.name.localeCompare(b.name));
-      for (const ind of indicators) {
+      // *** START RETTELSE ***
+      // Lav en Kopi af 'indicators' før sortering, for ikke at ødelægge den globale liste
+      const sortedIndicators = [...indicators].sort((a, b) => a.name.localeCompare(b.name));
+      // *** SLUT RETTELSE ***
+
+      // Fyld indikatorer (fra den nye sorterede kopi)
+      for (const ind of sortedIndicators) { // <-- Bruger nu 'sortedIndicators'
         xSelect.append(new Option(ind.name, ind.code));
         ySelect.append(new Option(ind.name, ind.code));
       }
@@ -1084,5 +1088,4 @@
   </script>
 </body>
 </html>
-
 
