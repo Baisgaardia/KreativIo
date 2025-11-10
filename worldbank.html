@@ -42,7 +42,56 @@
 <button id="btnGlobalExplorer" type="button">Global Udforsker</button>
 <button id="btnCorrelation" type="button">Korrelations-analyse</button>
   </div>
+<div id="dashboardSection" style="display: none; border: 1px solid #ddd; border-radius: 4px; padding: 1rem; margin-bottom: 2rem;">
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+      <div style="background: #f4f4f4; padding: 1rem; border-radius: 4px; text-align: center;">
+        <span style="font-size: 0.9em; color: #555;">BNP/indbygger (PPP)</span>
+        <h3 id="kpi-bnp-ppp" style="margin: 0.25rem 0 0 0;">-</h3>
+      </div>
+      <div style="background: #f4f4f4; padding: 1rem; border-radius: 4px; text-align: center;">
+        <span style="font-size: 0.9em; color: #555;">Forventet Levealder</span>
+        <h3 id="kpi-levealder" style="margin: 0.25rem 0 0 0;">-</h3>
+      </div>
+      <div style="background: #f4f4f4; padding: 1rem; border-radius: 4px; text-align: center;">
+        <span style="font-size: 0.9em; color: #555;">Gini-indeks</span>
+        <h3 id="kpi-gini" style="margin: 0.25rem 0 0 0;">-</h3>
+      </div>
+      <div style="background: #f4f4f4; padding: 1rem; border-radius: 4px; text-align: center;">
+        <span style="font-size: 0.9em; color: #555;">Befolkningstilvækst</span>
+        <h3 id="kpi-bef-vaekst" style="margin: 0.25rem 0 0 0;">-</h3>
+      </div>
+    </div>
 
+    <h3 style="border-bottom: 2px solid #eee; padding-bottom: 5px;">Økonomisk Struktur (Nyeste data)</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 2rem; margin-top: 1rem; margin-bottom: 1.5rem;">
+      <div style="flex: 1; min-width: 300px; height: 300px; position: relative;">
+        <canvas id="dashboardPieBeskaeftigelse"></canvas>
+      </div>
+      <div style="flex: 1; min-width: 300px; height: 300px; position: relative;">
+        <canvas id="dashboardPieBNP"></canvas>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 1.5rem;">
+      <div>
+        <h3 style="border-bottom: 2px solid #eee; padding-bottom: 5px;">📈 Demografi & Befolkning</h3>
+        <ul id="kpi-list-demografi" style="list-style: none; padding-left: 0;">
+          </ul>
+      </div>
+      <div>
+        <h3 style="border-bottom: 2px solid #eee; padding-bottom: 5px;">❤️ Sundhed & Levestandard</h3>
+        <ul id="kpi-list-sundhed" style="list-style: none; padding-left: 0;">
+          </ul>
+      </div>
+    </div>
+
+    <h3 style="border-bottom: 2px solid #eee; padding-bottom: 5px;">⚖️ Indkomstfordeling (Nyeste data)</h3>
+    <div style="height: 300px; position: relative;">
+      <canvas id="dashboardBarUlighed"></canvas>
+    </div>
+
+  </div>
   <div id="tableContainer" class="table-container"></div>
 
   <div id="graphSection" style="display: none;">
@@ -318,19 +367,32 @@
     // *** ÆNDRING 2: NY "HENT DATA"-KNAP LOGIK ***
     // Denne funktion erstatter den gamle anonyme .onclick
     // Bemærk: Den er ikke "async", den kører ØJEBLIKKELIGT.
+    // *** ÆNDRING 2: NY "HENT DATA"-KNAP LOGIK ***
+    // (ERSTAT DEN GAMLE onFetchClick MED DENNE)
     function onFetchClick() {
       const c1 = document.getElementById('country1').value;
       const c2 = document.getElementById('country2').value;
+      const dashboard = document.getElementById('dashboardSection');
+
       if (!c1) return alert('Vælg venligst mindst ét land.');
 
       document.getElementById('tableContainer').innerHTML = 'Genererer tabel...';
       const c1Name = document.getElementById('country1').options[document.getElementById('country1').selectedIndex].text;
       const c2Name = c2 ? document.getElementById('country2').options[document.getElementById('country2').selectedIndex].text : '';
+      
+      // Skjul altid korrelations- og udforsker-sektionerne
+      document.getElementById('explorerSection').style.display = 'none';
+      document.getElementById('correlationSection').style.display = 'none';
+      document.getElementById('graphSection').style.display = 'none';
+      document.getElementById('giniSection').style.display = 'none';
 
-      // Vi fjerner alt med "Promise.all", da fetchRaw nu er øjeblikkelig
+
       if (c2) {
-        const p1 = fetchRaw(c1); // Kører med det samme
-        const p2 = fetchRaw(c2); // Kører med det samme
+        // HVIS TO LANDE ER VALGT: Skjul dashboard og vis sammenligning
+        dashboard.style.display = 'none'; 
+        
+        const p1 = fetchRaw(c1);
+        const p2 = fetchRaw(c2);
         
         latest1 = p1; latest2 = p2;
         const yearsUnion = [...new Set([...p1.years, ...p2.years])].sort();
@@ -339,9 +401,15 @@
         document.getElementById('tableContainer').append(buildComparison(p1, p2, c1Name, c2Name));
         document.getElementById('btnExcel').disabled = false;
       } else {
-        const p = fetchRaw(c1); // Kører med det samme
+        // HVIS KUN ET LAND ER VALGT: Vis dashboard OG tabel
+        const p = fetchRaw(c1);
         
         latest1 = p; latest2 = null;
+        
+        // KALD DE NYE FUNKTIONER
+        buildDashboard(p); // Byg og vis dashboard
+        dashboard.style.display = 'block'; // Gør det synligt
+        
         document.getElementById('tableContainer').innerHTML = '';
         document.getElementById('tableContainer').append(buildTable(p));
         document.getElementById('btnExcel').disabled = false;
@@ -910,6 +978,170 @@
       });
     }
     // *** SLUT: NYE FUNKTIONER TIL KORRELATIONS-ANALYSE ***
+// *** START: NYE FUNKTIONER TIL LANDESPECIFIKT DASHBOARD ***
+
+    // Globale variabler til at holde styr på dashboardets grafer
+    let dashboardPieBesk, dashboardPieBNP, dashboardBarUlighed;
+
+    // A. En sikker, lokal kopi af findLatestValue-funktionen
+    // (Vi kopierer den for at være 100% sikre på, at den er tilgængelig her)
+    function findLatestValueForDashboard(dataMap, indicatorCode) {
+      const indicatorData = dataMap[indicatorCode];
+      if (!indicatorData) {
+        return { value: null, year: null };
+      }
+      const availableYears = Object.keys(indicatorData);
+      availableYears.sort((a, b) => b - a); 
+      for (const year of availableYears) {
+        if (indicatorData[year] != null) {
+          return { value: indicatorData[year], year: year };
+        }
+      }
+      return { value: null, year: null };
+    }
+    
+    // B. En hjælpefunktion til at formatere KPI-bokse
+    function updateKpiBox(elementId, data, unit = '') {
+      const el = document.getElementById(elementId);
+      if (data.value != null) {
+        el.innerHTML = `${data.value.toFixed(unit === '%' ? 1 : 0)} ${unit} <span style="font-size: 0.7em; color: #777;">(${data.year})</span>`;
+      } else {
+        el.textContent = 'Data mangler';
+      }
+    }
+    
+    // C. En hjælpefunktion til at formatere KPI-lister
+    function updateKpiList(listId, dataMap, indicatorList) {
+      const listEl = document.getElementById(listId);
+      listEl.innerHTML = ''; // Ryd gammel liste
+      for (const code of indicatorList) {
+        const name = worldBankData.metadata.indicators[code];
+        const data = findLatestValueForDashboard(dataMap, code);
+        const li = document.createElement('li');
+        li.style.marginBottom = '0.5rem';
+        if (data.value != null) {
+          li.innerHTML = `<strong>${name}:</strong> ${data.value.toFixed(1)} <span style="font-size: 0.8em; color: #777;">(${data.year})</span>`;
+        } else {
+          li.innerHTML = `<strong>${name}:</strong> <span style="color: #999;">Data mangler</span>`;
+        }
+        listEl.append(li);
+      }
+    }
+
+    // D. En genanvendelig funktion til at tegne LAGKAGEDIAGRAMMER
+    function drawDashboardPieChart(canvasId, chartInstance, data, title) {
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      const newChartInstance = new Chart(ctx, {
+        type: 'pie', // Lagkagediagram
+        data: {
+          labels: data.map(d => `${d.name} (${d.year})`),
+          datasets: [{
+            data: data.map(d => d.value),
+            backgroundColor: [
+              'rgba(75, 192, 192, 0.6)', // Turkis (Primær)
+              'rgba(255, 159, 64, 0.6)', // Orange (Sekundær)
+              'rgba(54, 162, 235, 0.6)'  // Blå (Tertiær)
+            ],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: { display: true, text: title },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return `${context.label}: ${context.raw.toFixed(1)}%`;
+                }
+              }
+            }
+          }
+        }
+      });
+      return newChartInstance;
+    }
+
+    // E. En genanvendelig funktion til at tegne SØJLEDIAGRAMMER
+    function drawDashboardBarChart(canvasId, chartInstance, data, title) {
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      const newChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: data.map(d => `${d.name} (${d.year})`),
+          datasets: [{
+            label: 'Indkomstandel i %',
+            data: data.map(d => d.value),
+            backgroundColor: 'rgba(153, 102, 255, 0.6)' // Lilla
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: 'y', // Gør den horisontal
+          plugins: {
+            title: { display: true, text: title },
+            legend: { display: false }
+          }
+        }
+      });
+      return newChartInstance;
+    }
+
+    // F. HOVEDFUNKTIONEN: Denne samler det hele
+    function buildDashboard(dataPackage) {
+      const dataMap = dataPackage.dataMap; // Få adgang til selve data-objektet
+
+      // 1. Opdater Hoved-KPI'er
+      updateKpiBox('kpi-bnp-ppp', findLatestValueForDashboard(dataMap, 'NY.GDP.PCAP.PP.KD'), '$');
+      updateKpiBox('kpi-levealder', findLatestValueForDashboard(dataMap, 'SP.DYN.LE00.IN'), 'år');
+      updateKpiBox('kpi-gini', findLatestValueForDashboard(dataMap, 'SI.POV.GINI'));
+      updateKpiBox('kpi-bef-vaekst', findLatestValueForDashboard(dataMap, 'SP.POP.GROW'), '%');
+
+      // 2. Data til Lagkagediagram: Beskæftigelse
+      const beskData = [
+        { ...findLatestValueForDashboard(dataMap, 'SL.AGR.EMPL.ZS'), name: 'Primær (Landbrug)' },
+        { ...findLatestValueForDashboard(dataMap, 'SL.IND.EMPL.ZS'), name: 'Sekundær (Industri)' },
+        { ...findLatestValueForDashboard(dataMap, 'SL.SRV.EMPL.ZS'), name: 'Tertiær (Service)' }
+      ].filter(d => d.value != null); // Filtrer dem fra, der mangler data
+      
+      dashboardPieBesk = drawDashboardPieChart('dashboardPieBeskaeftigelse', dashboardPieBesk, beskData, 'Beskæftigelse fordelt på sektorer (%)');
+
+      // 3. Data til Lagkagediagram: BNP Værditilvækst
+      const bnpData = [
+        { ...findLatestValueForDashboard(dataMap, 'NV.AGR.TOTL.ZS'), name: 'Primær (Værdi)' },
+        { ...findLatestValueForDashboard(dataMap, 'NV.IND.TOTL.ZS'), name: 'Sekundær (Værdi)' },
+        { ...findLatestValueForDashboard(dataMap, 'NV.SRV.TOTL.ZS'), name: 'Tertiær (Værdi)' }
+      ].filter(d => d.value != null);
+      
+      dashboardPieBNP = drawDashboardPieChart('dashboardPieBNP', dashboardPieBNP, bnpData, 'BNP-værditilvækst fordelt på sektorer (%)');
+
+      // 4. Opdater Detaljerede Profil-lister
+      const demografiListe = ['SP.DYN.TFRT.IN', 'SP.URB.TOTL.IN.ZS', 'SP.URB.GROW'];
+      updateKpiList('kpi-list-demografi', dataMap, demografiListe);
+      
+      const sundhedListe = ['SH.DYN.MORT', 'SH.MED.PHYS.ZS', 'SH.MED.BEDS.ZS', 'SH.STA.BRTC.ZS', 'EG.ELC.ACCS.ZS', 'SH.H2O.SMDW.ZS'];
+      updateKpiList('kpi-list-sundhed', dataMap, sundhedListe);
+
+      // 5. Data til Søjlediagram: Ulighed
+      const ulighedData = [
+        { ...findLatestValueForDashboard(dataMap, 'SI.DST.FRST.10'), name: 'Nederste 10%' },
+        { ...findLatestValueForDashboard(dataMap, 'SI.DST.FRST.20'), name: 'Nederste 20%' },
+        { ...findLatestValueForDashboard(dataMap, 'SI.DST.05TH.20'), name: 'Øverste 20%' },
+        { ...findLatestValueForDashboard(dataMap, 'SI.DST.10TH.10'), name: 'Øverste 10%' }
+      ].filter(d => d.value != null);
+      
+      dashboardBarUlighed = drawDashboardBarChart('dashboardBarUlighed', dashboardBarUlighed, ulighedData, 'Indkomstandel fordelt på grupper (%)');
+    }
+    
+    // *** SLUT: NYE FUNKTIONER TIL LANDESPECIFIKT DASHBOARD ***
     // START: GINI-SIMULATOR KODE (HELT UÆNDRET)
     let lorenzActualChart, lorenzSimChart;
 
