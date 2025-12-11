@@ -36,6 +36,7 @@
         <h2>Forhåndsvisning af metodeafsnit</h2>
         <textarea id="preview"></textarea><br>
         <button onclick="downloadDoc()">Download som Word-fil</button>
+        <button onclick="resetForm()" style="background: #d9534f; margin-left: 10px;">Nulstil og start forfra</button>
     </div>
 </div>
 
@@ -59,18 +60,50 @@ const questions = [
 
 let answers = [], current = 0;
 
+// --- NYT: Indlæs gemte data fra LocalStorage ved start ---
+if (localStorage.getItem('sop_answers')) {
+    try {
+        answers = JSON.parse(localStorage.getItem('sop_answers'));
+        current = parseInt(localStorage.getItem('sop_current')) || 0;
+    } catch (e) {
+        console.error("Kunne ikke indlæse gemte svar", e);
+    }
+}
+
 function showQuestion(prefill = '') {
+    if (current >= questions.length) {
+        showPreview();
+        return;
+    }
     document.getElementById('question').innerText = questions[current];
-    document.getElementById('answer').value = prefill;
+    
+    // Tjek om der ligger en 'kladde' for det nuværende spørgsmål i localstorage
+    // (hvis man reloader midt i en sætning)
+    let savedDraft = localStorage.getItem('sop_draft_text');
+    
+    // Brug prefill (hvis vi går tilbage), ellers brug kladde, ellers tom
+    document.getElementById('answer').value = prefill ? prefill : (savedDraft ? savedDraft : '');
+    
     document.getElementById('bar').style.width = ((current) / questions.length) * 100 + '%';
     document.getElementById('prevBtn').style.display = current > 0 ? 'inline-block' : 'none';
 }
+
+// --- NYT: Gem kladen løbende mens man skriver ---
+document.getElementById('answer').addEventListener('input', function(e) {
+    localStorage.setItem('sop_draft_text', e.target.value);
+});
 
 function next() {
     const ans = document.getElementById('answer').value.trim();
     if (ans) {
         answers.push({q: questions[current], a: ans});
         current++;
+        
+        // --- NYT: Gem status til LocalStorage ---
+        localStorage.setItem('sop_answers', JSON.stringify(answers));
+        localStorage.setItem('sop_current', current);
+        localStorage.removeItem('sop_draft_text'); // Fjern kladde når vi går videre
+        
         if (current < questions.length) {
             showQuestion();
         } else {
@@ -83,8 +116,16 @@ function next() {
 
 function prev() {
     if (current > 0) {
+        // Fjern det svar vi lige har 'fortrudt' fra listen, så vi kan redigere det
+        // (Bemærk: i den originale kode blev svaret poppet. Det gør vi stadig)
         const lastAnswer = answers.pop().a;
         current--;
+        
+        // --- NYT: Opdater LocalStorage ---
+        localStorage.setItem('sop_answers', JSON.stringify(answers));
+        localStorage.setItem('sop_current', current);
+        localStorage.removeItem('sop_draft_text'); 
+
         showQuestion(lastAnswer);
     }
 }
@@ -96,6 +137,14 @@ function showPreview() {
 
     const fullText = answers.map(item => `Spørgsmål: ${item.q}\nSvar: ${item.a}`).join('\n\n');
     document.getElementById('preview').value = fullText;
+}
+
+// --- NYT: Funktion til at nulstille (tilføjet knap i HTML for en sikkerheds skyld) ---
+function resetForm() {
+    if(confirm("Er du sikker på, at du vil slette alle svar og starte forfra?")) {
+        localStorage.clear();
+        location.reload();
+    }
 }
 
 async function downloadDoc() {
