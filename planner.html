@@ -324,12 +324,11 @@
 
       const WeatherWidget = () => {
           const [weather, setWeather] = useState(null);
+          const [locationName, setLocationName] = useState('Indlæser...');
 
           useEffect(() => {
-              const fetchWeather = async () => {
+              const fetchWeatherForCoords = async (lat, lon) => {
                   try {
-                      const lat = 57.0467;
-                      const lon = 9.9359;
                       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m`;
                       const response = await fetch(url);
                       const data = await response.json();
@@ -338,7 +337,29 @@
                       console.error("Failed to fetch weather data:", error);
                   }
               };
-              fetchWeather();
+
+              const getPositionAndFetchWeather = () => {
+                  if (navigator.geolocation) {
+                      navigator.geolocation.getCurrentPosition(
+                          (position) => {
+                              const { latitude, longitude } = position.coords;
+                              setLocationName('Din Lokation');
+                              fetchWeatherForCoords(latitude, longitude);
+                          },
+                          () => {
+                              console.log("Geolocation permission denied. Falling back to default.");
+                              setLocationName('Aalborg');
+                              fetchWeatherForCoords(57.0467, 9.9359);
+                          }
+                      );
+                  } else {
+                      console.log("Geolocation not supported. Falling back to default.");
+                      setLocationName('Aalborg');
+                      fetchWeatherForCoords(57.0467, 9.9359);
+                  }
+              };
+
+              getPositionAndFetchWeather();
           }, []);
 
           if (!weather) {
@@ -351,7 +372,7 @@
                       {getWeatherIcon(weather.weather_code)}
                       <div>
                           <p className="text-xl font-bold">{weather.temperature_2m}°C</p>
-                          <p className="text-slate-500 dark:text-slate-400 text-sm">Aalborg</p>
+                          <p className="text-slate-500 dark:text-slate-400 text-sm">{locationName}</p>
                       </div>
                   </div>
                    <div className="text-right text-xs text-slate-500 dark:text-slate-400 space-y-1">
