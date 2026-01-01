@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="da" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2306b6d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20'/%3E%3C/svg%3E" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Student Life Planner - Neuro Friendly</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              // Vi bruger CSS variabler her for at kunne skifte tema dynamisk
+              'neon-purple': 'var(--color-purple)',
+              'neon-cyan': 'var(--color-cyan)',
+              'neon-green': 'var(--color-green)',
+              'neon-red': 'var(--color-red)',
+              'neon-blue': 'var(--color-blue)',
+              'neon-yellow': 'var(--color-yellow)',
+            },
+            boxShadow: {
+              'neon-purple': 'var(--shadow-purple)',
+              'neon-cyan': 'var(--shadow-cyan)',
+              'neon-green': 'var(--shadow-green)',
+            }
+          }
+        }
+      }
+    </script>
+
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@18.2.0",
+          "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
+          "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+          "lucide-react": "https://esm.sh/lucide-react@0.378.0",
+          "react-confetti": "https://esm.sh/react-confetti@6.1.0",
+          "jspdf": "https://esm.sh/jspdf@2.5.1",
+          "html2canvas": "https://esm.sh/html2canvas@1.4.1"
+        }
+      }
+    </script>
+    
+    <style>
+      /* --- THEME VARIABLES --- */
+      :root {
+        /* Default: NEON MODE */
+        --color-purple: #a855f7;
+        --color-cyan: #06b6d4;
+        --color-green: #22c55e;
+        --color-red: #ef4444;
+        --color-blue: #3b82f6;
+        --color-yellow: #eab308;
+        
+        --shadow-purple: 0 0 5px #a855f7, 0 0 10px #a855f7, 0 0 20px #a855f7;
+        --shadow-cyan: 0 0 5px #06b6d4, 0 0 10px #06b6d4, 0 0 20px #06b6d4;
+        --shadow-green: 0 0 5px #22c55e, 0 0 10px #22c55e, 0 0 20px #22c55e;
+      }
+
+      /* CALM MODE (Pastel / Low Stimuli) */
+      .theme-calm {
+        --color-purple: #8b5cf6;
+        --color-cyan: #0891b2;
+        --color-green: #16a34a;
+        --color-red: #dc2626;
+        --color-blue: #2563eb;
+        --color-yellow: #d97706;
+
+        /* Ingen "glow" effekter i calm mode for visuel ro */
+        --shadow-purple: none;
+        --shadow-cyan: none;
+        --shadow-green: none;
+      }
+
+      /* --- ADHD-FRIENDLY "RO MODE" (LIGHT) REFACTOR --- */
+      html.theme-calm:not(.dark) {
+        --bg-main: #fdfbf7;
+        --bg-card: #ffffff;
+        --text-main: #2D3748;
+        --text-muted: #64748b; /* Tailwind's slate-500 */
+        --border-color: #f0f0f0;
+      }
+
+      html.theme-calm:not(.dark) body {
+        background-color: var(--bg-main) !important;
+        color: var(--text-main);
+      }
+
+      /* Override specific tailwind text colors for consistency in Ro Mode */
+      html.theme-calm:not(.dark) .text-slate-800,
+      html.theme-calm:not(.dark) .text-slate-700,
+      html.theme-calm:not(.dark) .text-slate-600 {
+          color: var(--text-main);
+      }
+      html.theme-calm:not(.dark) .text-slate-500,
+      html.theme-calm:not(.dark) .text-slate-400 {
+          color: var(--text-muted);
+      }
+      
+      /* Style for the cards (Widgets) in Ro Mode */
+      html.theme-calm:not(.dark) .p-4.bg-white.rounded-lg {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-color);
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+      }
+      /* --- END REFACTOR --- */
+
+
+      /* Custom scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1e293b; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #475569; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #64748b; 
+      }
+
+      /* Scrollbar for light (calm) mode */
+      html:not(.dark) ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+      }
+      html:not(.dark) ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+      }
+      html:not(.dark) ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+      
+      .form-checkbox {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        color-adjust: exact;
+        display: inline-block;
+        vertical-align: middle;
+        background-origin: border-box;
+        user-select: none;
+        flex-shrink: 0;
+        height: 1.5rem;
+        width: 1.5rem;
+        background-color: #334155;
+        border-color: #475569;
+        border-width: 1px;
+        border-radius: 0.375rem;
+      }
+      .form-checkbox:checked {
+        background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+        border-color: transparent;
+        background-color: currentColor;
+        background-size: 100% 100%;
+        background-position: center;
+        background-repeat: no-repeat;
+      }
+      /* Light mode checkbox */
+      html:not(.dark) .form-checkbox {
+        background-color: #e2e8f0;
+        border-color: #94a3b8;
+      }
+      html:not(.dark) .form-checkbox:checked {
+        background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+      }
+    </style>
+  </head>
+  <body class="bg-slate-950 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-500">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+      import React, { useState, useEffect, useCallback, useRef } from 'react';
+      import ReactDOM from 'react-dom/client';
+      import { Plus, X, Sun, Cloud, CloudRain, CloudSnow, Zap, CloudFog, Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight, Droplets, Wind, Thermometer, GraduationCap, Edit3, BookOpen, BrainCircuit, BatteryLow, BatteryMedium, BatteryFull, AlertTriangle, Timer, PowerOff, Pencil, Download, Trash2, Copy, Palette, CheckSquare, Pause, Play, BarChart2 } from 'lucide-react';
+      import ReactConfetti from 'react-confetti';
+      import jsPDF from 'jspdf';
+      import html2canvas from 'html2canvas';
+
+      // --- TYPES & CONSTANTS ---
+      const Category = {
+        Lektier: 'Lektier',
+        Lektion: 'Lektion',
+        Fritid: 'Fritid',
+        Aflevering: 'Aflevering',
+      };
+
+      const CATEGORY_STYLES = {
+        [Category.Lektier]: {
+          color: 'text-neon-red',
+          bg: 'bg-neon-red/10 dark:bg-neon-red/10',
+          border: 'border-neon-red/50 dark:border-neon-red/50',
+          solidBg: 'bg-neon-red',
+        },
+        [Category.Lektion]: {
+          color: 'text-neon-blue',
+          bg: 'bg-neon-blue/10 dark:bg-neon-blue/10',
+          border: 'border-neon-blue/50 dark:border-neon-blue/50',
+          solidBg: 'bg-neon-blue',
+        },
+        [Category.Fritid]: {
+          color: 'text-neon-green',
+          bg: 'bg-neon-green/10 dark:bg-neon-green/10',
+          border: 'border-neon-green/50 dark:border-neon-green/50',
+          solidBg: 'bg-neon-green',
+        },
+        [Category.Aflevering]: {
+          color: 'text-neon-yellow',
+          bg: 'bg-neon-yellow/10 dark:bg-neon-yellow/10',
+          border: 'border-neon-yellow/50 dark:border-neon-yellow/50',
+          solidBg: 'bg-neon-yellow',
+        },
+      };
+
+      // --- HELPER FUNCTIONS ---
+      const getFormattedDate = (date) => {
+        return new Intl.DateTimeFormat('da-DK', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        }).format(date);
+      };
+
+      const getFormattedTime = (date) => {
+        return new Intl.DateTimeFormat('da-DK', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        }).format(date);
+      };
+
+      const dateToISO = (date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0'); // JS months are 0-indexed
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+      }
+
+      const getWeekNumber = (d) => {
+          d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+          d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+          const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+          const weekNo = Math.ceil((((d.valueOf() - yearStart.valueOf()) / 86400000) + 1) / 7);
+          return weekNo;
+      }
+
+      const getWeatherIcon = (code) => {
+          if ([0, 1].includes(code)) return <Sun className="w-8 h-8 text-yellow-500" />;
+          if ([2].includes(code)) return <Cloud className="w-8 h-8 text-sky-500" />;
+          if ([3].includes(code)) return <Cloud className="w-8 h-8 text-slate-500" />;
+          if ([45, 48].includes(code)) return <CloudFog className="w-8 h-8 text-slate-600" />;
+          if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return <CloudRain className="w-8 h-8 text-blue-500" />;
+          if ([71, 73, 75, 77, 85, 86].includes(code)) return <CloudSnow className="w-8 h-8 text-gray-400 dark:text-white" />;
+          if ([95, 96, 99].includes(code)) return <Zap className="w-8 h-8 text-yellow-400" />;
+          return <Thermometer className="w-8 h-8 text-slate-400" />;
+      };
+      
+      const Widget = ({ children, className = '' }) => (
+          <div className={`p-4 bg-white dark:bg-slate-800/40 backdrop-blur-xl border border-slate-200 dark:border-slate-100/10 rounded-lg ${className}`}>
+              {children}
+          </div>
+      );
+
+
+      // --- UI COMPONENTS ---
+      const Header = ({ onStartFocus, currentTheme, onToggleTheme }) => {
+          const [currentTime, setCurrentTime] = useState(new Date());
+
+          useEffect(() => {
+              const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+              return () => clearInterval(timer);
+          }, []);
+
+          return (
+              <header className="flex flex-col md:flex-row justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700/50 gap-4">
+                  <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-lg flex items-center justify-center">
+                         <GraduationCap className="w-8 h-8 text-neon-cyan" />
+                      </div>
+                      <div>
+                        <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-wider">Planlæg din tid - Aalborg Handelsgymnasium</h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">{getFormattedDate(currentTime)}</p>
+                      </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                      <button 
+                        onClick={onToggleTheme}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-md font-semibold border transition-all duration-300 ${
+                            currentTheme === 'neon' 
+                            ? 'bg-slate-800 text-neon-purple border-neon-purple/50' 
+                            : 'bg-white text-neon-purple border-slate-300'
+                        }`}
+                        title="Skift farvetema"
+                      >
+                          <Palette size={18} />
+                          <span className="text-sm">{currentTheme === 'neon' ? 'Neon Mode' : 'Ro Mode'}</span>
+                      </button>
+
+                      <button 
+                        onClick={onStartFocus}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md text-neon-cyan font-semibold border border-slate-300 dark:border-neon-cyan/50 transition-colors"
+                      >
+                          <BrainCircuit size={20} />
+                          <span className="hidden sm:inline">Start Fokus</span>
+                      </button>
+                      <div className="font-mono text-3xl tracking-widest bg-slate-100 dark:bg-slate-900/80 px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700/50 text-neon-cyan shadow-neon-cyan transition-shadow duration-300">
+                          {getFormattedTime(currentTime)}
+                      </div>
+                  </div>
+              </header>
+          );
+      };
+
+      const WeatherWidget = () => {
+          const [weather, setWeather] = useState(null);
+
+          useEffect(() => {
+              const fetchWeather = async () => {
+                  try {
+                      const lat = 57.0467;
+                      const lon = 9.9359;
+                      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m`;
+                      const response = await fetch(url);
+                      const data = await response.json();
+                      setWeather(data.current);
+                  } catch (error) {
+                      console.error("Failed to fetch weather data:", error);
+                  }
+              };
+              fetchWeather();
+          }, []);
+
+          if (!weather) {
+              return <div className="p-4 bg-slate-100 dark:bg-slate-800/40 rounded-lg h-[88px] animate-pulse"></div>;
+          }
+
+          return (
+              <Widget className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                      {getWeatherIcon(weather.weather_code)}
+                      <div>
+                          <p className="text-xl font-bold">{weather.temperature_2m}°C</p>
+                          <p className="text-slate-500 dark:text-slate-400 text-sm">Aalborg</p>
+                      </div>
+                  </div>
+                   <div className="text-right text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                      <div className="flex items-center gap-2 justify-end"><Wind size={12}/> {weather.wind_speed_10m} km/t</div>
+                      <div className="flex items-center gap-2 justify-end"><Droplets size={12}/> {weather.relative_humidity_2m}% fugtighed</div>
+                  </div>
+              </Widget>
+          );
+      };
+
+      const DopamineProgressBar = ({ progress, energy }) => {
+          const getMotivationMessage = () => {
+             if (progress === 100) return "Fantastisk arbejde! Du er helt færdig!";
+             if (progress === 0) return "Klar til at starte? En lille ting ad gangen.";
+             
+             if (energy === 'low') return "Du klarer det flot trods lav energi. Husk pauser.";
+             if (energy === 'medium') return "Stabilt arbejde. Bliv ved med det gode flow!";
+             if (energy === 'high') return "Du flyver afsted! Udnyt energien!";
+             
+             if (progress < 50) return "God start! Hvert tjek tæller.";
+             return "Du er over halvvejs – stærkt gået!";
+          };
+
+          return (
+              <Widget>
+                  <div className="flex justify-between items-end mb-2">
+                     <p className="text-sm text-slate-600 dark:text-slate-300">Dagens Fremskridt</p>
+                     <p className="text-xs text-neon-cyan italic animate-pulse">{getMotivationMessage()}</p>
+                  </div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-4 overflow-hidden border border-slate-300 dark:border-slate-600">
+                      <div
+                          className="bg-neon-green h-4 rounded-full transition-all duration-500 ease-out"
+                          style={{ 
+                            width: `${progress}%`,
+                            boxShadow: progress > 0 ? `var(--shadow-green)` : 'none'
+                          }}
+                      />
+                  </div>
+              </Widget>
+          );
+      };
+
+      const AddTaskModal = ({ isOpen, onClose, onSave, taskToEdit, onDelete, onCopy }) => {
+          const [title, setTitle] = useState('');
+          const [category, setCategory] = useState(Category.Lektion);
+          const [date, setDate] = useState(dateToISO(new Date()));
+          const [startTime, setStartTime] = useState('08:15');
+          const [endTime, setEndTime] = useState('09:25');
+          const [firstStep, setFirstStep] = useState('');
+          const [copyStatus, setCopyStatus] = useState(false);
+
+          useEffect(() => {
+              if (taskToEdit) {
+                  setTitle(taskToEdit.title || '');
+                  setCategory(taskToEdit.category || Category.Lektion);
+                  setDate(taskToEdit.date || dateToISO(new Date()));
+                  setStartTime(taskToEdit.startTime || '08:15');
+                  setEndTime(taskToEdit.endTime || '09:25');
+                  setFirstStep(taskToEdit.firstStep || '');
+              } else {
+                  setTitle('');
+                  setCategory(Category.Lektion);
+                  setDate(dateToISO(new Date()));
+                  setStartTime('08:15');
+                  setEndTime('09:25');
+                  setFirstStep('');
+              }
+              setCopyStatus(false);
+          }, [taskToEdit, isOpen]);
+
+          if (!isOpen) return null;
+
+          const handleSubmit = (e) => {
+              e.preventDefault();
+              if (!title.trim()) return;
+              onSave({ title, category, date, startTime, endTime, firstStep }, true);
+          };
+
+          const handleSaveAndCopy = () => {
+              if (!title.trim()) return;
+              onSave({ title, category, date, startTime, endTime, firstStep }, false);
+              setCopyStatus(true);
+              setTimeout(() => setCopyStatus(false), 2000);
+          };
+
+          const handleDelete = () => {
+              if (taskToEdit && taskToEdit.id) {
+                  onDelete(taskToEdit.id);
+              }
+          };
+          
+          const isEditing = taskToEdit && taskToEdit.id;
+
+          return (
+              <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+                  <div className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 rounded-lg p-8 shadow-2xl shadow-purple-500/10 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-between items-center mb-6">
+                          <h2 className="text-2xl font-bold text-neon-purple">{isEditing ? 'Rediger Opgave' : 'Tilføj Ny Opgave'}</h2>
+                          <button onClick={onClose} className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"><X /></button>
+                      </div>
+                      <form onSubmit={handleSubmit} className="space-y-4">
+                          <div>
+                              <label htmlFor="title" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Opgave Titel</label>
+                              <input type="text" id="title" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="F.eks. Læs Dansk" className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-neon-purple focus:border-neon-purple outline-none" />
+                          </div>
+                          
+                          <div className="bg-slate-100 dark:bg-slate-800/50 p-3 rounded-md border border-slate-200 dark:border-slate-700">
+                              <label htmlFor="firstStep" className="block text-xs font-medium text-neon-cyan mb-1 flex items-center gap-1">
+                                <CheckSquare size={12}/> Hjælp dig selv i gang (Frivillig)
+                              </label>
+                              <textarea 
+                                id="firstStep" 
+                                value={firstStep} 
+                                onChange={(e) => setFirstStep(e.target.value)} 
+                                placeholder="Hvad er det allerførste lille skridt? (F.eks. 'Find bogen frem')"
+                                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-neon-cyan outline-none resize-none h-20 placeholder-slate-400 dark:placeholder-slate-500"
+                              />
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">At nedbryde opgaven gør den nemmere at starte på.</p>
+                          </div>
+
+                          <div>
+                              <label htmlFor="category" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Kategori</label>
+                              <select id="category" value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-neon-purple focus:border-neon-purple outline-none">
+                                  {Object.values(Category).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                              </select>
+                          </div>
+                          <div>
+                              <label htmlFor="date" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Dato</label>
+                              <input type="date" id="date" value={date} onChange={(e) => setDate(e.target.value)} required className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-neon-purple focus:border-neon-purple outline-none" />
+                          </div>
+                          <div className="flex gap-4">
+                              <div className="w-1/2">
+                                  <label htmlFor="startTime" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Tid</label>
+                                  <input type="time" id="startTime" value={startTime} onChange={(e) => setStartTime(e.target.value)} required className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-neon-purple focus:border-neon-purple outline-none" />
+                              </div>
+                              <div className="w-1/2">
+                                  <label htmlFor="endTime" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Slut Tid</label>
+                                  <input type="time" id="endTime" value={endTime} onChange={(e) => setEndTime(e.target.value)} required className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md px-3 py-2 focus:ring-2 focus:ring-neon-purple focus:border-neon-purple outline-none" />
+                              </div>
+                          </div>
+                          <div className="flex justify-between items-center pt-4">
+                              <div>
+                                   {isEditing && (
+                                      <button type="button" onClick={handleDelete} className="flex items-center gap-2 px-4 py-2 bg-neon-red/20 hover:bg-neon-red/40 text-neon-red font-semibold rounded-md">
+                                          <Trash2 size={16} />
+                                          Slet
+                                      </button>
+                                  )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                  <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md">Annuller</button>
+                                  {isEditing ? (
+                                      <button type="button" onClick={() => onCopy(taskToEdit)} className="flex items-center gap-2 px-4 py-2 bg-neon-blue/20 hover:bg-neon-blue/40 text-neon-blue font-semibold rounded-md">
+                                          <Copy size={16} />
+                                          Kopier
+                                      </button>
+                                  ) : (
+                                      <button type="button" onClick={handleSaveAndCopy} className={`flex items-center gap-2 px-4 py-2 rounded-md font-semibold transition-colors ${copyStatus ? 'bg-neon-green/20 text-neon-green' : 'bg-neon-blue/20 hover:bg-neon-blue/40 text-neon-blue'}`}>
+                                          <Copy size={16} />
+                                          {copyStatus ? 'Kopieret!' : 'Gem & Opret Ny'}
+                                      </button>
+                                  )}
+                                  <button type="submit" className="px-4 py-2 bg-neon-purple hover:bg-purple-600 text-white font-semibold rounded-md shadow-lg shadow-purple-500/20">{isEditing ? 'Gem Ændringer' : 'Gem Opgave'}</button>
+                              </div>
+                          </div>
+                      </form>
+                  </div>
+              </div>
+          );
+      };
+
+      const TaskItem = ({ task, onToggle, onEdit }) => {
+          const { color, bg, border } = CATEGORY_STYLES[task.category];
+          return (
+              <div className={`flex items-center gap-4 p-4 rounded-lg bg-white dark:bg-slate-800/40 backdrop-blur-xl border ${border} transition-all duration-300 ${task.completed ? 'opacity-50' : ''}`}>
+                  <input 
+                      type="checkbox" 
+                      checked={task.completed} 
+                      onChange={() => onToggle(task.id)}
+                      className="form-checkbox h-6 w-6 rounded text-neon-green focus:ring-neon-green cursor-pointer" 
+                  />
+                  <div className="flex-grow">
+                      <p className={`font-semibold ${task.completed ? 'line-through text-slate-500 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'}`}>{task.title}</p>
+                      {task.firstStep && !task.completed && (
+                        <p className="text-xs text-neon-cyan mt-1 flex items-center gap-1 italic">
+                           <CheckSquare size={10} /> Start med: {task.firstStep}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${color} ${bg}`}>{task.category}</span>
+                          <div className="flex items-center gap-1"><Clock size={12}/>{task.startTime} - {task.endTime}</div>
+                      </div>
+                  </div>
+                   <button onClick={() => onEdit(task)} className="text-slate-500 dark:text-slate-500 hover:text-black dark:hover:text-white p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                      <Pencil size={16} />
+                  </button>
+              </div>
+          );
+      };
+
+      const Calendar = ({ selectedDate, setSelectedDate, tasks }) => {
+          const [currentMonth, setCurrentMonth] = useState(new Date());
+
+          useEffect(() => {
+              setCurrentMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+          }, [selectedDate]);
+
+          const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+          const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+          const startDate = new Date(startOfMonth);
+          startDate.setDate(startDate.getDate() - (startDate.getDay() === 0 ? 6 : startDate.getDay() - 1));
+
+          const days = [];
+          let day = startDate;
+          for (let i = 0; i < 42; i++) {
+              days.push(new Date(day));
+              day.setDate(day.getDate() + 1);
+          }
+          
+          const taskDates = new Set(tasks.map(t => t.date));
+
+          const handlePrevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+          const handleNextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+
+          return (
+              <Widget>
+                  <div className="flex justify-between items-center mb-4">
+                      <button onClick={handlePrevMonth} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"><ChevronLeft /></button>
+                      <h3 className="font-bold text-lg">{new Intl.DateTimeFormat('da-DK', { month: 'long', year: 'numeric' }).format(currentMonth)}</h3>
+                      <button onClick={handleNextMonth} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"><ChevronRight /></button>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1 text-center text-xs text-slate-500 dark:text-slate-400 mb-2">
+                      {['M', 'T', 'O', 'T', 'F', 'L', 'S'].map(d => <div key={d}>{d}</div>)}
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                      {days.map((d, i) => {
+                          const isSelected = dateToISO(d) === dateToISO(selectedDate);
+                          const isToday = dateToISO(d) === dateToISO(new Date());
+                          const isCurrentMonth = d.getMonth() === currentMonth.getMonth();
+                          const hasTasks = taskDates.has(dateToISO(d));
+
+                          return (
+                              <button
+                                  key={i}
+                                  onClick={() => setSelectedDate(d)}
+                                  className={`relative flex items-center justify-center h-10 w-10 rounded-full transition-colors
+                                      ${!isCurrentMonth ? 'text-slate-300 dark:text-slate-600' : 'text-slate-700 dark:text-slate-200'}
+                                      ${isToday ? 'bg-neon-cyan/20 text-neon-cyan font-bold' : ''}
+                                      ${isSelected ? 'bg-neon-purple ring-2 ring-neon-purple text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}
+                                  `}
+                              >
+                                  {d.getDate()}
+                                  {hasTasks && <div className="absolute bottom-1.5 h-1.5 w-1.5 bg-neon-green rounded-full shadow-neon-green"></div>}
+                              </button>
+                          )
+                      })}
+                  </div>
+              </Widget>
+          );
+      };
+
+      const NotesInputWidget = ({ noteInput, onNoteChange, onAddNote }) => {
+        const handleKeyDown = (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault(); // Prevent new line on enter
+            onAddNote();
+          }
+        };
+
+        return (
+          <Widget>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-xl font-bold">
+                <Edit3 className="text-neon-cyan" />
+                <h2>Noter</h2>
+              </div>
+              <button 
+                onClick={onAddNote}
+                className="px-2.5 py-1 text-xs font-semibold text-neon-purple bg-neon-purple/10 rounded-md hover:bg-neon-purple/20 transition-colors"
+              >
+                Tilføj Seddel
+              </button>
+            </div>
+            <textarea 
+              value={noteInput}
+              onChange={onNoteChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Skriv en note og tryk Enter..."
+              className="w-full h-32 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 rounded-md p-2 text-sm text-slate-800 dark:text-slate-300 focus:ring-2 focus:ring-neon-purple focus:border-neon-purple outline-none resize-none"
+            />
+          </Widget>
+        );
+      };
+
+      const StickyNotesWidget = ({ notes, onDelete }) => {
+        if (notes.length === 0) {
+          return null;
+        }
+
+        return (
+          <div className="space-y-3">
+            {notes.map((note, index) => (
+              <div 
+                key={note.id} 
+                style={{'--tw-rotate': `${index % 2 === 0 ? '-1.5deg' : '1deg'}`}}
+                className="relative p-4 bg-[#FEF9C3] text-[#422006] dark:bg-yellow-200 dark:text-yellow-900 rounded-md shadow-lg transform rotate-[var(--tw-rotate)] hover:rotate-0 hover:scale-105 transition-transform duration-200"
+              >
+                <button 
+                  onClick={() => onDelete(note.id)} 
+                  className="absolute top-1.5 right-1.5 text-amber-700/50 hover:text-amber-700"
+                >
+                  <X size={16} />
+                </button>
+                <p className="text-sm break-words pr-4">{note.text}</p>
+              </div>
+            ))}
+          </div>
+        );
+      };
+
+      const WeeklyScheduleTaskItem = ({ task, onEdit }) => {
+          const { solidBg } = CATEGORY_STYLES[task.category];
+          const textColor = task.category === Category.Aflevering ? 'text-slate-900' : 'text-white';
+
+          return (
+              <div onClick={() => onEdit(task)} className={`${solidBg} ${textColor} rounded-lg p-2 text-sm shadow-md cursor-pointer hover:opacity-80 transition-opacity`}>
+                  <p className="font-bold text-xs">{task.startTime} - {task.endTime}</p>
+                  <p className="font-semibold mt-1 break-words">{task.title}</p>
+              </div>
+          );
+      };
+
+      const WeeklySchedule = ({ tasks, selectedDate, onEdit }) => {
+          const getWeekDays = (date) => {
+              const start = new Date(date);
+              const day = start.getDay();
+              const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+              start.setDate(diff);
+              const week = [];
+              for (let i = 0; i < 7; i++) {
+                  week.push(new Date(start));
+                  start.setDate(start.getDate() + 1);
+              }
+              return week;
+          };
+          
+          const weekDays = getWeekDays(selectedDate);
+
+          return (
+              <div className="grid grid-cols-7 gap-2">
+                  {weekDays.map(day => {
+                      const dayTasks = tasks.filter(task => task.date === dateToISO(day)).sort((a,b) => a.startTime.localeCompare(b.startTime));
+                      const isToday = dateToISO(day) === dateToISO(new Date());
+
+                      return (
+                          <div key={day.toISOString()} className={`min-w-0 p-1 rounded-lg ${isToday ? 'bg-slate-100 dark:bg-slate-800/50' : ''}`}>
+                               <h3 className={`font-bold text-center text-sm mb-2 ${isToday ? 'text-neon-cyan' : 'text-slate-500 dark:text-slate-400'}`}>
+                                  {new Intl.DateTimeFormat('da-DK', { weekday: 'short' }).format(day)}. {day.getDate()}
+                              </h3>
+                              <div className="space-y-2">
+                                {dayTasks.length > 0 ? (
+                                    dayTasks.map(task => <WeeklyScheduleTaskItem key={task.id} task={task} onEdit={onEdit} />)
+                                ) : (
+                                    <div className="text-center text-xs text-slate-400 dark:text-slate-600 pt-4 h-10"></div>
+                                )}
+                              </div>
+                          </div>
+                      )
+                  })}
+              </div>
+          );
+      };
+
+      const EnergyBarometer = ({ energy, onSetEnergy }) => {
+          const levels = [
+              { id: 'low', label: 'Lav', icon: <BatteryLow /> },
+              { id: 'medium', label: 'Medium', icon: <BatteryMedium /> },
+              { id: 'high', label: 'Høj', icon: <BatteryFull /> },
+          ];
+
+          return (
+              <Widget>
+                  <h3 className="text-sm text-slate-600 dark:text-slate-300 mb-2 font-semibold">Hvordan er din energi lige nu?</h3>
+                  <div className="grid grid-cols-3 gap-2">
+                      {levels.map(level => (
+                          <button
+                              key={level.id}
+                              onClick={() => onSetEnergy(level.id)}
+                              className={`p-2 rounded-md flex flex-col items-center justify-center transition-colors text-sm
+                                  ${energy === level.id 
+                                    ? 'bg-neon-purple text-white' 
+                                    : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                          >
+                              {level.icon}
+                              <span className="mt-1">{level.label}</span>
+                          </button>
+                      ))}
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 text-center italic">Din status hjælper med at tilpasse beskederne.</p>
+              </Widget>
+          );
+      };
+
+      // --- NEW COMPONENT: EnergyHistory ---
+      const EnergyHistory = () => {
+          const [data, setData] = useState([]);
+
+          useEffect(() => {
+              const history = JSON.parse(localStorage.getItem('student_energy_history') || '[]');
+              setData(history.slice(-7)); // Get last 7 entries
+          }, []);
+
+          const energyToY = (level) => {
+              if (level === 'high') return 10;
+              if (level === 'medium') return 50;
+              if (level === 'low') return 90;
+              return 50;
+          };
+          
+          if (data.length < 2) {
+              return (
+                  <Widget>
+                      <div className="flex items-center gap-2 text-lg font-bold mb-2">
+                          <BarChart2 className="text-neon-cyan" />
+                          <h3>Energi historik</h3>
+                      </div>
+                      <div className="text-center text-sm text-slate-500 dark:text-slate-400 py-4">
+                          Registrer din energi for at se en graf her.
+                      </div>
+                  </Widget>
+              )
+          }
+
+          const points = data.map((d, i) => {
+              const x = (i / (data.length - 1)) * 100;
+              const y = energyToY(d.value);
+              return `${x},${y}`;
+          }).join(' ');
+
+          return (
+              <Widget>
+                  <div className="flex items-center gap-2 text-lg font-bold mb-2">
+                      <BarChart2 className="text-neon-cyan"/>
+                      <h3>Energi historik (sidste 7)</h3>
+                  </div>
+                  <div className="relative h-28">
+                      <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+                          <polyline
+                              fill="none"
+                              stroke="var(--color-cyan)"
+                              strokeWidth="2"
+                              points={points}
+                          />
+                      </svg>
+                      <div className="absolute top-0 left-0 -translate-y-1/2 text-xs text-slate-400">Høj</div>
+                      <div className="absolute top-1/2 left-0 -translate-y-1/2 text-xs text-slate-400">Med</div>
+                      <div className="absolute bottom-0 left-0 translate-y-1/2 text-xs text-slate-400">Lav</div>
+                  </div>
+              </Widget>
+          );
+      };
+
+      const DeadlineCountdown = ({ tasks }) => {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          const upcomingDeadlines = tasks
+              .filter(task => {
+                  const taskDate = new Date(task.date);
+                  return task.category === Category.Aflevering && taskDate >= today;
+              })
+              .map(task => {
+                  const taskDate = new Date(task.date);
+                  const diffTime = taskDate.getTime() - today.getTime();
+                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                  return { ...task, daysLeft: diffDays };
+              })
+              .sort((a, b) => a.daysLeft - b.daysLeft);
+
+          return (
+              <Widget>
+                  <div className="flex items-center gap-2 text-xl font-bold mb-2">
+                      <AlertTriangle className="text-neon-yellow" />
+                      <h2>Kommende Deadlines</h2>
+                  </div>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                      {upcomingDeadlines.length > 0 ? (
+                          upcomingDeadlines.map(task => (
+                              <div key={task.id} className="text-sm">
+                                  <p className="font-semibold">{task.title}</p>
+                                  <p className="text-amber-500 dark:text-amber-400 font-bold">
+                                      {task.daysLeft === 0 ? 'I dag!' : `${task.daysLeft} ${task.daysLeft === 1 ? 'dag' : 'dage'} tilbage`}
+                                  </p>
+                              </div>
+                          ))
+                      ) : (
+                          <p className="text-sm text-slate-500 dark:text-slate-500">Ingen kommende afleveringer.</p>
+                      )}
+                  </div>
+              </Widget>
+          );
+      };
+
+      // --- REFACTORED COMPONENT: FocusMode ---
+      const FocusMode = ({ onClose, tasks, selectedDate }) => {
+          const [activeTask, setActiveTask] = useState(null);
+          const [timeLeft, setTimeLeft] = useState(25 * 60);
+          const [isPaused, setIsPaused] = useState(false);
+          
+          const focusableTasks = tasks
+              .filter(task => 
+                  task.date === dateToISO(selectedDate) &&
+                  !task.completed &&
+                  task.category !== Category.Lektion
+              )
+              .sort((a,b) => a.startTime.localeCompare(b.startTime));
+
+          // Effect for the timer
+          useEffect(() => {
+              if (!activeTask || timeLeft <= 0 || isPaused) return;
+              
+              const timerId = setInterval(() => {
+                  setTimeLeft(prev => prev - 1);
+              }, 1000);
+              
+              return () => clearInterval(timerId);
+          }, [activeTask, timeLeft, isPaused]);
+
+          const handleSelectTask = (task) => {
+              setActiveTask(task);
+              setTimeLeft(25 * 60); // Reset timer
+              setIsPaused(false); // Ensure timer starts
+          };
+
+          const formatTime = (seconds) => {
+              const minutes = Math.floor(seconds / 60);
+              const secs = seconds % 60;
+              return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+          };
+
+          // If no task is selected yet, show the selection screen
+          if (!activeTask) {
+              return (
+                  <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-lg z-50 flex flex-col items-center justify-center p-4 transition-opacity duration-300">
+                      <div className="text-center w-full max-w-xl">
+                          <h1 className="text-3xl md:text-4xl font-bold text-slate-100 mb-2">Start Fokus Session</h1>
+                          <p className="text-slate-400 mb-8">Vælg en opgave for i dag at fokusere på.</p>
+                          
+                          <div className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-4 max-h-80 overflow-y-auto space-y-2">
+                              {focusableTasks.length > 0 ? (
+                                  focusableTasks.map(task => (
+                                      <button 
+                                          key={task.id}
+                                          onClick={() => handleSelectTask(task)}
+                                          className="w-full text-left p-4 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors flex justify-between items-center"
+                                      >
+                                          <span className="font-semibold text-lg">{task.title}</span>
+                                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${CATEGORY_STYLES[task.category].color} ${CATEGORY_STYLES[task.category].bg}`}>{task.category}</span>
+                                      </button>
+                                  ))
+                              ) : (
+                                  <div className="text-center py-10">
+                                      <p className="text-slate-400">Ingen fokuserbare opgaver for i dag.</p>
+                                      <p className="text-slate-500 text-sm">Opgaver af typen 'Lektion' og allerede færdiggjorte opgaver vises ikke her.</p>
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+                      <button
+                          onClick={onClose}
+                          className="mt-8 flex items-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-md text-white font-semibold transition-colors"
+                      >
+                          <X size={20}/>
+                          Annuller
+                      </button>
+                  </div>
+              );
+          }
+
+          // Once a task is selected, show the timer view
+          const currentTaskIndex = focusableTasks.findIndex(t => t.id === activeTask.id);
+          const nextTask = focusableTasks[currentTaskIndex + 1] || null;
+
+          return (
+              <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-lg z-50 flex flex-col items-center justify-center p-4 transition-opacity duration-300">
+                  <div className="text-center w-full max-w-2xl">
+                      <div className="mb-8">
+                          <p className="text-lg text-slate-400 uppercase tracking-widest">Nu</p>
+                          <h1 className="text-4xl md:text-5xl font-bold text-slate-100 break-words">
+                            {activeTask.title}
+                          </h1>
+                      </div>
+
+                      <div className="font-mono text-7xl md:text-9xl text-neon-cyan tracking-widest my-8">{formatTime(timeLeft)}</div>
+                      
+                      <div className="mb-10">
+                          <p className="text-md text-slate-500 uppercase tracking-widest">Næste</p>
+                          <h2 className="text-xl md:text-2xl font-semibold text-slate-300">
+                            {nextTask ? nextTask.title : "Ingen flere opgaver"}
+                          </h2>
+                      </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                      <button
+                          onClick={onClose}
+                          className="flex items-center gap-2 px-6 py-3 bg-neon-red hover:bg-red-500 rounded-md text-white font-semibold transition-colors"
+                      >
+                          <PowerOff size={24} />
+                          Stop Session
+                      </button>
+                      <button
+                          onClick={() => setIsPaused(!isPaused)}
+                          className="flex items-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-md text-white font-semibold transition-colors"
+                      >
+                          {isPaused ? <Play size={24} /> : <Pause size={24} />}
+                          {isPaused ? 'Genoptag' : 'Pause'}
+                      </button>
+                  </div>
+                   <button
+                        onClick={() => setActiveTask(null)}
+                        className="absolute top-5 left-5 text-slate-400 hover:text-white flex items-center gap-2"
+                   >
+                        <ChevronLeft size={16} /> Tilbage til opgaveliste
+                   </button>
+              </div>
+          );
+      };
+
+      // --- MAIN APP COMPONENT ---
+      const App = () => {
+          const [tasks, setTasks] = useState([]);
+          const [selectedDate, setSelectedDate] = useState(new Date());
+          const [isModalOpen, setIsModalOpen] = useState(false);
+          const [editingTask, setEditingTask] = useState(null);
+          const [showConfetti, setShowConfetti] = useState(false);
+          const [view, setView] = useState('today');
+          const [isFocusMode, setIsFocusMode] = useState(false);
+          const [energy, setEnergy] = useState(() => localStorage.getItem('student_energy') || null);
+          const [theme, setTheme] = useState(() => localStorage.getItem('student_theme') || 'neon');
+          const [stickyNotes, setStickyNotes] = useState(() => {
+            const savedNotes = localStorage.getItem('student_sticky_notes');
+            return savedNotes ? JSON.parse(savedNotes) : [];
+          });
+          const [noteInput, setNoteInput] = useState('');
+          const scheduleRef = useRef(null);
+
+          useEffect(() => {
+            localStorage.setItem('student_sticky_notes', JSON.stringify(stickyNotes));
+          }, [stickyNotes]);
+
+          const handleAddStickyNote = () => {
+            if (!noteInput.trim()) return;
+            const newNote = { id: crypto.randomUUID(), text: noteInput.trim() };
+            setStickyNotes(prevNotes => {
+                const updatedNotes = [...prevNotes, newNote];
+                return updatedNotes.length > 3 ? updatedNotes.slice(1) : updatedNotes;
+            });
+            setNoteInput('');
+          };
+
+          const handleDeleteStickyNote = (id) => {
+            setStickyNotes(prevNotes => prevNotes.filter(note => note.id !== id));
+          };
+
+          useEffect(() => {
+            const root = document.documentElement;
+            const body = document.body;
+            if (theme === 'calm') {
+                root.classList.add('theme-calm');
+                root.classList.remove('dark');
+                body.style.backgroundColor = '#fdfbf7'; 
+            } else {
+                root.classList.remove('theme-calm');
+                root.classList.add('dark');
+                body.style.backgroundColor = '#020617';
+            }
+            localStorage.setItem('student_theme', theme);
+          }, [theme]);
+
+          const toggleTheme = () => {
+            setTheme(prev => prev === 'neon' ? 'calm' : 'neon');
+          };
+
+          useEffect(() => {
+              const storedTasks = localStorage.getItem('student_tasks');
+              if (storedTasks) setTasks(JSON.parse(storedTasks));
+          }, []);
+
+          useEffect(() => {
+              localStorage.setItem('student_tasks', JSON.stringify(tasks));
+          }, [tasks]);
+          
+          const handleSetEnergy = (newEnergy) => {
+              setEnergy(newEnergy);
+              localStorage.setItem('student_energy', newEnergy);
+              
+              const history = JSON.parse(localStorage.getItem('student_energy_history') || '[]');
+              const newEntry = { value: newEnergy, timestamp: new Date().toISOString() };
+              const updatedHistory = [...history, newEntry].slice(-100);
+              localStorage.setItem('student_energy_history', JSON.stringify(updatedHistory));
+          };
+
+          const handleSaveTask = (taskData, closeModal = true) => {
+              if (editingTask && editingTask.id) {
+                  setTasks(prevTasks =>
+                      prevTasks.map(t =>
+                          t.id === editingTask.id
+                              ? { ...t, ...taskData }
+                              : t
+                      ).sort((a, b) => a.startTime.localeCompare(b.startTime))
+                  );
+              } else {
+                  const newTask = { ...taskData, id: crypto.randomUUID(), completed: false };
+                  setTasks(prev => [...prev, newTask].sort((a,b) => a.startTime.localeCompare(b.startTime)));
+              }
+              if (closeModal) {
+                setIsModalOpen(false);
+                setEditingTask(null);
+              }
+          };
+          
+          const handleStartEdit = (task) => {
+              setEditingTask(task);
+              setIsModalOpen(true);
+          };
+
+          const handleCloseModal = () => {
+              setIsModalOpen(false);
+              setEditingTask(null);
+          };
+
+          const handleDeleteTask = (id) => {
+              setTasks(prevTasks => prevTasks.filter(task => task.id !== id));
+              handleCloseModal();
+          };
+
+          const handleInitiateCopy = (taskToCopy) => {
+              const { id, completed, ...copyData } = taskToCopy;
+              setEditingTask({
+                  ...copyData,
+                  date: dateToISO(new Date()),
+              });
+          };
+
+          const toggleTask = useCallback((id) => {
+              let taskCompleted = false;
+              setTasks(prev => 
+                  prev.map(task => {
+                      if (task.id === id) {
+                          if (!task.completed) taskCompleted = true;
+                          return { ...task, completed: !task.completed };
+                      }
+                      return task;
+                  })
+              );
+              if (taskCompleted) {
+                  setShowConfetti(true);
+                  setTimeout(() => setShowConfetti(false), 3000);
+              }
+          }, []);
+
+          const handleDownloadPdf = () => {
+              const input = scheduleRef.current;
+              if (!input) return;
+              
+              const isDarkMode = document.documentElement.classList.contains('dark');
+              const bgColor = isDarkMode ? '#020617' : '#fdfbf7';
+              
+              html2canvas(input, { backgroundColor: bgColor }).then((canvas) => {
+                  const imgData = canvas.toDataURL('image/png');
+                  const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+                  
+                  const pdfWidth = pdf.internal.pageSize.getWidth();
+                  const pdfHeight = pdf.internal.pageSize.getHeight();
+                  const canvasWidth = canvas.width;
+                  const canvasHeight = canvas.height;
+                  const ratio = canvasWidth / canvasHeight;
+                  
+                  let imgWidth = pdfWidth - 20; // with margin
+                  let imgHeight = imgWidth / ratio;
+                  
+                  if (imgHeight > pdfHeight - 20) {
+                      imgHeight = pdfHeight - 20;
+                      imgWidth = imgHeight * ratio;
+                  }
+                  
+                  const x = (pdfWidth - imgWidth) / 2;
+                  const y = (pdfHeight - imgHeight) / 2;
+                  
+                  pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+                  pdf.save('ugeskema.pdf');
+              });
+          };
+
+          const handlePrevWeek = () => {
+              const newDate = new Date(selectedDate);
+              newDate.setDate(newDate.getDate() - 7);
+              setSelectedDate(newDate);
+          };
+
+          const handleNextWeek = () => {
+              const newDate = new Date(selectedDate);
+              newDate.setDate(newDate.getDate() + 7);
+              setSelectedDate(newDate);
+          };
+
+          const tasksForSelectedDay = tasks.filter(task => task.date === dateToISO(selectedDate)).sort((a, b) => a.startTime.localeCompare(b.startTime));
+          const completedTasksForDay = tasksForSelectedDay.filter(task => task.completed).length;
+          const progress = tasksForSelectedDay.length > 0 ? (completedTasksForDay / tasksForSelectedDay.length) * 100 : 0;
+          
+          const isToday = dateToISO(selectedDate) === dateToISO(new Date());
+
+          return (
+              <div className="min-h-screen font-sans">
+                  {showConfetti && <ReactConfetti width={window.innerWidth} height={window.innerHeight} recycle={false} numberOfPieces={300} />}
+                  {isFocusMode && <FocusMode tasks={tasks} selectedDate={selectedDate} onClose={() => setIsFocusMode(false)} />}
+                  
+                  <AddTaskModal isOpen={isModalOpen} onClose={handleCloseModal} onSave={handleSaveTask} taskToEdit={editingTask} onDelete={handleDeleteTask} onCopy={handleInitiateCopy} />
+                  
+                  <div className="max-w-7xl mx-auto p-4 space-y-4">
+                      <Header onStartFocus={() => setIsFocusMode(true)} currentTheme={theme} onToggleTheme={toggleTheme} />
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="md:col-span-2"><DopamineProgressBar progress={progress} energy={energy} /></div>
+                          {view === 'today' && <div className="md:col-span-1"><WeatherWidget /></div>}
+                      </div>
+
+                      <main className={`grid gap-6 ${view === 'week' ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'}`}>
+                          <div className={`${view === 'week' ? 'col-span-1' : 'lg:col-span-2'} space-y-4`}>
+                              
+                              <div className="p-1 rounded-lg bg-slate-100 dark:bg-slate-800/40 w-fit mx-auto border border-slate-200 dark:border-slate-100/10 flex justify-center">
+                                  <button onClick={() => setView('today')} className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${view === 'today' ? 'bg-neon-purple text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'}`}>I Dag</button>
+                                  <button onClick={() => setView('week')} className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${view === 'week' ? 'bg-neon-purple text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'}`}>Ugeskema</button>
+                              </div>
+
+                              {view === 'today' ? (
+                                  <>
+                                      <EnergyBarometer energy={energy} onSetEnergy={handleSetEnergy} />
+                                      <EnergyHistory key={energy} />
+                                      <div className="flex items-center gap-2 text-2xl font-bold"><Clock className="text-neon-cyan"/><h2>{isToday ? "Opgaver i Dag" : `Opgaver for ${selectedDate.toLocaleDateString('da-DK', {day: 'numeric', month: 'long'})}`}</h2></div>
+                                      <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                                          {tasksForSelectedDay.length > 0 ? (tasksForSelectedDay.map(task => <TaskItem key={task.id} task={task} onToggle={toggleTask} onEdit={handleStartEdit} />)) : (<Widget><div className="text-center py-12 px-6"><p className="text-slate-500 dark:text-slate-400">Ingen opgaver for denne dag.</p><p className="text-slate-400 dark:text-slate-500 text-sm mt-1">Tilføj en ny opgave med '+' knappen.</p></div></Widget>)}
+                                      </div>
+                                  </>
+                              ) : (
+                                   <>
+                                      <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2 text-2xl font-bold">
+                                              <BookOpen className="text-neon-cyan"/>
+                                              <h2>Ugeskema</h2>
+                                          </div>
+                                          <button
+                                              onClick={handleDownloadPdf}
+                                              className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-md text-sm font-semibold text-neon-cyan border border-slate-300 dark:border-neon-cyan/50 transition-colors"
+                                          >
+                                              <Download size={16} />
+                                              Download som PDF
+                                          </button>
+                                      </div>
+                                      
+                                      <Widget className="flex justify-between items-center p-2">
+                                          <button onClick={handlePrevWeek} className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                                              <ChevronLeft size={16}/> Forrige Uge
+                                          </button>
+                                          <span className="font-bold text-neon-cyan">Uge {getWeekNumber(selectedDate)}</span>
+                                          <button onClick={handleNextWeek} className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                                              Næste Uge <ChevronRight size={16}/>
+                                          </button>
+                                      </Widget>
+
+                                      <div ref={scheduleRef} className="p-4 bg-white dark:bg-slate-950">
+                                        <WeeklySchedule tasks={tasks} selectedDate={selectedDate} onEdit={handleStartEdit} />
+                                      </div>
+                                   </>
+                              )}
+                          </div>
+
+                          {view === 'today' && (
+                            <div className="lg:col-span-1 space-y-4">
+                                <div className="flex items-center gap-2 text-2xl font-bold"><CalendarIcon className="text-neon-cyan"/><h2>Kalender Oversigt</h2></div>
+                                <Calendar selectedDate={selectedDate} setSelectedDate={setSelectedDate} tasks={tasks} />
+                                <DeadlineCountdown tasks={tasks} />
+                                <NotesInputWidget 
+                                    noteInput={noteInput}
+                                    onNoteChange={(e) => setNoteInput(e.target.value)}
+                                    onAddNote={handleAddStickyNote}
+                                />
+                            </div>
+                          )}
+                      </main>
+                  </div>
+                  
+                  <div className="hidden lg:block fixed top-28 left-5 w-52 z-10">
+                    <StickyNotesWidget notes={stickyNotes} onDelete={handleDeleteStickyNote} />
+                  </div>
+
+                  <button
+                      onClick={() => { setEditingTask(null); setIsModalOpen(true); }}
+                      className="fixed bottom-8 right-8 bg-neon-purple text-white p-4 rounded-full shadow-lg shadow-purple-500/40 hover:scale-110 transition-transform duration-200 z-40"
+                  >
+                      <Plus size={28} />
+                  </button>
+              </div>
+          );
+      }
+
+      // --- RENDER THE APP (from index.tsx) ---
+      const rootElement = document.getElementById('root');
+      if (!rootElement) {
+        throw new Error("Could not find root element to mount to");
+      }
+
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(
+        <React.StrictMode>
+          <App />
+        </React.StrictMode>
+      );
+    </script>
+  </body>
+</html>
