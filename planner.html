@@ -282,6 +282,13 @@
               return () => clearInterval(timer);
           }, []);
 
+          const handleReset = () => {
+            if (window.confirm("Er du sikker på, at du vil slette alt data? Dette kan ikke fortrydes.")) {
+              localStorage.clear();
+              window.location.reload();
+            }
+          };
+
           return (
               <header className="flex flex-col md:flex-row justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700/50 gap-4">
                   <div className="flex items-center gap-4">
@@ -305,6 +312,19 @@
                       >
                           <Palette size={18} />
                           <span className="text-sm">{currentTheme === 'neon' ? 'Neon Mode' : 'Ro Mode'}</span>
+                      </button>
+
+                      <button 
+                        onClick={handleReset}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-md font-semibold border transition-all duration-300 ${
+                            currentTheme === 'neon' 
+                            ? 'bg-slate-800 text-red-500 border-red-500/40 hover:bg-red-500/10' 
+                            : 'bg-white text-red-600 border-red-200 hover:bg-red-50'
+                        }`}
+                        title="Nulstil alt data"
+                      >
+                          <Trash2 size={18} />
+                          <span className="text-sm">Nulstil</span>
                       </button>
 
                       <button 
