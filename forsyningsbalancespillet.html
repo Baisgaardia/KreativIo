@@ -314,7 +314,7 @@
       <h2>Trin 3: Vækstbidrag (Analyse 2024)</h2>
       <p class="info-box">
         <strong>Opgave:</strong> Analyser tallene for <strong>2024</strong>. 
-        Vurder hver komponents bidrag til BNP-væksten. Husk: En komponent kan godt være positiv og skabe produktion, selvom den ikke  "bidrager" (stiger mere end BNP).
+        Vurder hver komponents bidrag til BNP-væksten. Husk: En komponent kan godt have et mindre positivt bidrag, selvom den ikke trækker BNP-væksten "Positiv" (stiger mere end BNP).
       </p>
 
       <div style="text-align:center; font-size:1.2em; margin-bottom:15px;">
@@ -638,8 +638,8 @@ function setupStep3() {
     const options = [
       { label: "Positivt", value: "Positivt" },
       { label: "Neutralt", value: "Neutralt" },
-      { label: "Negativt", value: "Negativt" },
-      { label: "Mindre bidrag", value: "Mindre bidrag" }
+      { label: "Mindre bidrag", value: "Mindre bidrag" },
+      { label: "Negativt", value: "Negativt" }
     ];
 
     comps.forEach(comp => {
@@ -680,16 +680,16 @@ function checkStep3() {
         const growth = currentData[comp][2024];
         let correctType = "";
 
-        // Logik: Negativt (<0), Neutralt (ca. BNP), Driver (>BNP+0.1), Positivt (0-BNP)
+        // Logik: Negativt (<0), Neutralt (ca. BNP), Positivt (>BNP+0.1), Mindre bidrag (0-BNP)
         if (growth < 0) correctType = "Negativt";
         else if (Math.abs(growth - bnpGrowth) <= 0.1) correctType = "Neutralt";
-        else if (growth > bnpGrowth + 0.1) correctType = "Driver";
+        else if (growth > bnpGrowth + 0.1) correctType = "Positivt";
         else correctType = "Positivt";
 
         if (userChoice !== correctType) {
             let reason = "";
-            if (correctType === "Driver") reason = "stiger mere end BNP og driver væksten";
-            else if (correctType === "Positivt") reason = "er positivt, men ligger under BNP-snittet";
+            if (correctType === "Positivt") reason = "stiger mere end BNP og bidrager til væksten";
+            else if (correctType === "Mindre bidrag") reason = "er positivt, men ligger under BNP-snittet";
             else if (correctType === "Neutralt") reason = "følger BNP-niveauet";
             else reason = "er negativt og trækker væksten direkte ned";
 
@@ -716,7 +716,4 @@ function showVictory() {
 </script>
 
 </body>
-
 </html>
-
-
