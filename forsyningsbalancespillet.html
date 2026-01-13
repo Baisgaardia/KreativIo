@@ -681,20 +681,29 @@ function checkStep3() {
         let correctType = "";
 
         // Logik: Negativt (<0), Neutralt (ca. BNP), Positivt (>BNP+0.1), Mindre bidrag (0-BNP)
-        if (growth < 0) correctType = "Negativt";
-        else if (Math.abs(growth - bnpGrowth) <= 0.1) correctType = "Neutralt";
-        else if (growth > bnpGrowth + 0.1) correctType = "Positivt";
-        else correctType = "Positivt";
+        // Logik: Negativt (<0), Neutralt (ca. BNP), Positivt (>BNP+0.1), Mindre bidrag (0-BNP)
+if (growth < 0) {
+    correctType = "Negativt";
+} 
+else if (Math.abs(growth - bnpGrowth) <= 0.1) {
+    correctType = "Neutralt";
+} 
+else if (growth > bnpGrowth + 0.1) {
+    correctType = "Positivt";
+} 
+else {
+    correctType = "Mindre bidrag";
+}
 
         if (userChoice !== correctType) {
-            let reason = "";
-            if (correctType === "Positivt") reason = "stiger mere end BNP og bidrager til væksten";
-            else if (correctType === "Mindre bidrag") reason = "er positivt, men ligger under BNP-snittet";
-            else if (correctType === "Neutralt") reason = "følger BNP-niveauet";
-            else reason = "er negativt og trækker væksten direkte ned";
+    let reason = "";
+    if (correctType === "Positivt") reason = "stiger mere end BNP og trækker gennemsnittet op"; // Lille tekstjustering for klarhed
+    else if (correctType === "Mindre bidrag") reason = "er positivt, men ligger under BNP-snittet";
+    else if (correctType === "Neutralt") reason = "følger BNP-niveauet";
+    else reason = "er negativt og trækker væksten direkte ned";
 
-            errors.push(`${comp}: Du valgte '${userChoice}'. Korrekt: <strong>${correctType}</strong> (vækst: ${growth.toFixed(1)}%).`);
-        }
+    errors.push(`${comp}: Du valgte '${userChoice}'. Korrekt: <strong>${correctType}</strong> (vækst: ${growth.toFixed(1)}%). Begrundelse: Tallet ${reason}.`);
+}
     });
 
     const fb = document.getElementById("fb3");
@@ -717,3 +726,4 @@ function showVictory() {
 
 </body>
 </html>
+
