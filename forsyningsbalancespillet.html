@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="da">
 <head>
@@ -240,12 +241,82 @@
       <div id="dataTableContainer"></div>
     </div>
 
-    <div class="step-nav">
+   <div class="step-nav">
       <div id="nav1" class="step-item active">1. Opstilling</div>
       <div id="nav2" class="step-item">2. Vægtning</div>
       <div id="nav3" class="step-item">3. Analyse</div>
+      <div id="nav4" class="step-item">4. Kausalitet</div>
+    </div>
+<div id="step4" class="card hidden">
+  <h2>Trin 4: Kausalkæder & Økonomisk Sammenhæng</h2>
+  
+  <div id="s4_part1">
+    <h3>Del 1: Landets Økonomiske Situation (2024)</h3>
+    <p class="info-box">
+      <strong>Opgave:</strong> BNP-væksten i 2024 er <strong style="color:#2980b9; font-size:1.2em;"><span class="bnp-display"></span></strong>.<br>
+      Vurder ud fra dette tal, hvilken konjunktursituation landet befinder sig i.
+    </p>
+    
+    <div style="text-align:center; margin-bottom:15px;">
+      <select id="s4_situationSelect" style="padding:8px;">
+        <option value="" disabled selected>-- Vælg situation --</option>
+        <option value="krise">Økonomisk krise (Negativ/lav vækst i flere år)</option>
+        <option value="lav">Lavkonjunktur (Under 1% vækst)</option>
+        <option value="stabil">Stabil økonomisk udvikling (1% - 2% vækst)</option>
+        <option value="høj">Højkonjunktur (Over 2% vækst)</option>
+        <option value="overophedning">Mod en overophedning (Over 2% i flere år)</option>
+      </select>
+    </div>
+    
+    <div id="fb4_1" class="feedback"></div>
+    <div style="text-align:center;">
+      <button onclick="checkStep4_Part1()">Tjek Situation</button>
+    </div>
+  </div>
+
+  <div id="s4_part2" class="hidden" style="margin-top:30px; border-top:2px dashed #ccc; padding-top:20px;">
+    <h3>Del 2: Målsætning om Vækst</h3>
+    <p class="info-box">
+      Opfylder landet det samfundsøkonomiske mål om økonomisk vækst i 2024? <br>
+      Du skal både svare Ja/Nej og angive den korrekte begrundelse.
+    </p>
+    
+    <div style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-bottom:15px;">
+      <select id="s4_goalSelect" style="padding:8px;">
+        <option value="" disabled selected>-- Opfyldt? --</option>
+        <option value="yes">Ja, målet er opfyldt</option>
+        <option value="no">Nej, målet er ikke opfyldt</option>
+      </select>
+
+      <select id="s4_goalReason" style="padding:8px;">
+        <option value="" disabled selected>-- Vælg begrundelse --</option>
+        <option value="low">Fordi væksten er under 1%</option>
+        <option value="high">Fordi væksten er 1% eller derover</option>
+        <option value="inflation">Fordi inflationen er lav (under 2%)</option>
+      </select>
     </div>
 
+    <div id="fb4_2" class="feedback"></div>
+    <div style="text-align:center;">
+      <button onclick="checkStep4_Part2()">Tjek Målsætning</button>
+    </div>
+  </div>
+
+  <div id="s4_part3" class="hidden" style="margin-top:30px; border-top:2px dashed #ccc; padding-top:20px;">
+    <h3>Del 3: Årsager til udviklingen</h3>
+    <p class="info-box">
+      <strong>Opgave:</strong> Herunder ser du de 4 komponenter. Kortene er neutrale.<br>
+      Din opgave er at aflæse væksten i % og vælge den tekst og kausalkæde, der passer til udviklingen.
+    </p>
+
+    <div id="causalBuilderContainer"></div>
+
+    <div id="fb4_3" class="feedback"></div>
+    <div style="text-align:center; margin-top:20px;">
+      <button onclick="checkStep4_Part3()">Tjek Kausalkæder</button>
+    </div>
+  </div>
+</div>
     <div id="step1" class="card">
       <h2>Trin 1: Forsyningsbalancen (2021)</h2>
       <p class="info-box">
@@ -349,7 +420,6 @@
         <button onclick="checkStep3()">Afslut Analyse</button>
       </div>
     </div>
-
     <div id="victoryScreen" class="card hidden victory-container">
       <div class="victory-icon">🏆</div>
       <h2>Analyse Gennemført!</h2>
@@ -490,7 +560,7 @@ function showStep(num) {
     document.getElementById("step3").classList.add("hidden");
     document.getElementById("step"+num).classList.remove("hidden");
 
-    for(let i=1; i<=3; i++){
+    for(let i=1; i<=4; i++){
         document.getElementById("nav"+i).classList.remove("active");
         if(i < num) document.getElementById("nav"+i).classList.add("completed");
     }
@@ -707,10 +777,12 @@ else {
     });
 
     const fb = document.getElementById("fb3");
+fb.style.display = "block";
     if(errors.length === 0) {
         fb.className = "feedback success";
-        fb.innerHTML = "<strong>Fremragende analyse!</strong> Du har korrekt vurderet alle komponenternes bidrag.";
-        setTimeout(showVictory, 1500);
+        // Her laver vi knappen til Trin 4 i stedet for victory
+        fb.innerHTML = "<strong>Fremragende analyse!</strong> Du har korrekt vurderet alle komponenternes bidrag.<br>";
+        fb.innerHTML += '<button onclick="startStep4()" style="margin-top:10px; background-color:#2980b9;">Gå til Trin 4: Kausalitet &rarr;</button>';
     } else {
         fb.className = "feedback error";
         fb.innerHTML = "<strong>Fejl i analysen:</strong><br><ul style='text-align:left;'>" + errors.map(e => `<li>${e}</li>`).join("") + "</ul>";
@@ -721,6 +793,229 @@ function showVictory() {
     document.getElementById("step3").classList.add("hidden");
     document.getElementById("finalCountryName").textContent = allData[currentCountryCode].name;
     document.getElementById("victoryScreen").classList.remove("hidden");
+}
+// --- TRIN 4 LOGIK ---
+
+function startStep4() {
+    showStep(4);
+    setupStep4();
+}
+
+function setupStep4() {
+    // Nulstil UI
+    document.getElementById("s4_part1").classList.remove("hidden");
+    document.getElementById("s4_part2").classList.add("hidden");
+    document.getElementById("s4_part3").classList.add("hidden");
+    
+    document.querySelectorAll(".feedback").forEach(f => { f.style.display = "none"; f.innerHTML = ""; });
+    
+    // Vis BNP tallet
+    const bnpGrowth = currentData["BNP i markedspriser"][2024];
+    document.querySelectorAll(".bnp-display").forEach(el => el.textContent = bnpGrowth.toFixed(1) + "%");
+
+    // Klargør Del 3
+    renderCausalChains();
+}
+
+// DEL 1: SITUATION
+function checkStep4_Part1() {
+    const bnp = currentData["BNP i markedspriser"][2024];
+    const userChoice = document.getElementById("s4_situationSelect").value;
+    const fb = document.getElementById("fb4_1");
+    
+    let correctStatus = "";
+    if (bnp < 1) correctStatus = "lav"; 
+    else if (bnp >= 1 && bnp <= 2) correctStatus = "stabil";
+    else correctStatus = "høj";
+
+    let isAcceptable = (userChoice === correctStatus);
+    if (bnp < 0 && userChoice === "krise") isAcceptable = true;
+    if (bnp > 3 && userChoice === "overophedning") isAcceptable = true;
+
+    fb.style.display = "block";
+    if (isAcceptable) {
+        fb.className = "feedback success";
+        fb.innerHTML = "<strong>Korrekt!</strong> Du har identificeret den økonomiske situation.";
+        document.getElementById("s4_part2").classList.remove("hidden");
+        setTimeout(() => document.getElementById("s4_part2").scrollIntoView({behavior: "smooth"}), 100);
+    } else {
+        fb.className = "feedback error";
+        fb.innerHTML = `Ikke helt. Husk: < 1% er Lavkonjunktur, 1-2% er Stabil, > 2% er Højkonjunktur.`;
+    }
+}
+
+// DEL 2: MÅLSÆTNING
+function checkStep4_Part2() {
+    const bnp = currentData["BNP i markedspriser"][2024];
+    const choice = document.getElementById("s4_goalSelect").value;
+    const reason = document.getElementById("s4_goalReason").value;
+    const fb = document.getElementById("fb4_2");
+
+    const goalMet = bnp >= 1; 
+    const correctChoice = goalMet ? "yes" : "no";
+    const correctReason = goalMet ? "high" : "low"; 
+
+    fb.style.display = "block";
+    if (choice === correctChoice && reason === correctReason) {
+        fb.className = "feedback success";
+        fb.innerHTML = "<strong>Korrekt!</strong> Du har både vurderet målet og årsagen rigtigt.";
+        document.getElementById("s4_part3").classList.remove("hidden");
+        setTimeout(() => document.getElementById("s4_part3").scrollIntoView({behavior: "smooth"}), 100);
+    } else {
+        fb.className = "feedback error";
+        fb.innerHTML = "Forkert. Tjek om væksten er over eller under 1%, og vælg den begrundelse der passer til tallet.";
+    }
+}
+
+// DEL 3: KAUSALKÆDER
+function renderCausalChains() {
+    const container = document.getElementById("causalBuilderContainer");
+    container.innerHTML = "";
+
+    const logicTexts = {
+        "Privat forbrug": {
+            high: { 
+                desc: "Husholdningernes efterspørgsel bidrager til den øgede vækst, fordi den leder til en øget produktion i virksomhederne, hvilket leder til flere ansatte. Dette mindsker arbejdsløsheden.",
+                chain: "Efterspørgsel øges -> Produktion øges -> Behov for flere ansatte -> Lavere arbejdsløshed"
+            },
+            mid: { 
+                desc: "Husholdningernes efterspørgsel har et mindre bidrag til den økonomiske vækst.",
+                chain: "Efterspørgsel øges lidt -> skaber en hvis produktion -> muligt behov for at ansætte flere -> Mulig ændring i arbejdsløsheden"
+            },
+            neg: { 
+                desc: "Et fald i husholdningernes efterspørgsel trækker den økonomiske vækst ned.",
+                chain: "Efterspørgslen falder -> Et fald i produktionen -> Flere afskediges -> Stigning i arbejdsløsheden"
+            }
+        },
+        "Investeringer": {
+            high: {
+                desc: "Statens øgede investeringer bidrager til den øgede vækst, fordi den leder til en øget produktion i virksomhederne, hvilket leder til flere ansatte. Dette mindsker arbejdsløsheden.",
+                chain: "Efterspørgsel øges -> Produktion øges -> Behov for flere ansatte -> Lavere arbejdsløshed"
+            },
+            mid: {
+                desc: "Investeringerne har et mindre bidrag til den økonomiske vækst.",
+                chain: "Investeringer øges lidt -> skaber en hvis produktion -> muligt behov for at ansætte flere -> Mulig ændring i arbejdsløsheden"
+            },
+            neg: {
+                desc: "Et fald i statens off. investeringer trækker den økonomiske vækst ned.",
+                chain: "Efterspørgslen falder -> Et fald i produktionen -> Flere afskediges -> Stigning i arbejdsløsheden"
+            }
+        },
+        "Eksport": {
+            high: {
+                desc: "Virksomhedernes salg af varer til udlandet bidrager til den øgede vækst, fordi den leder til en øget produktion i virksomhederne, hvilket leder til flere ansatte. Dette mindsker arbejdsløsheden.",
+                chain: "Efterspørgsel øges -> Produktion øges -> Behov for flere ansatte -> Lavere arbejdsløshed"
+            },
+            mid: {
+                desc: "Eksporten har et mindre bidrag til den økonomiske vækst.",
+                chain: "Eksporten øges lidt -> skaber en hvis produktion -> muligt behov for at ansætte flere -> Mulig ændring i arbejdsløsheden"
+            },
+            neg: {
+                desc: "En lavere udenlandsk efterspørgsel efter varer trækker den økonomiske vækst ned.",
+                chain: "Efterspørgslen falder -> Et fald i produktionen -> Flere afskediges -> Stigning i arbejdsløsheden"
+            }
+        },
+        "Offentligt forbrug": {
+            high: {
+                desc: "Statens øgede udgifter til forsvar, sundhed og uddannelse bidrager til den øgede vækst, fordi den leder til en øget produktion i virksomhederne, hvilket leder til flere ansatte. Dette mindsker arbejdsløsheden.",
+                chain: "Efterspørgsel øges -> Produktion øges -> Behov for flere ansatte -> Lavere arbejdsløshed"
+            },
+            mid: {
+                desc: "Offentligt forbrug har et mindre bidrag til den økonomiske vækst.",
+                chain: "Offentligt forbrug er positivt -> skaber en hvis produktion -> muligt behov for at ansætte flere -> Mulig ændring i arbejdsløsheden"
+            },
+            neg: {
+                desc: "Statens mindskede udgifter til offentligt forbrug trækker den økonomiske vækst ned.",
+                chain: "Efterspørgslen falder -> Et fald i produktionen -> Flere afskediges -> Stigning i arbejdsløsheden"
+            }
+        }
+    };
+
+    const comps = ["Privat forbrug", "Investeringer", "Eksport", "Offentligt forbrug"];
+    const bnpGrowth = currentData["BNP i markedspriser"][2024];
+
+    comps.forEach((key, index) => {
+        const val = currentData[key][2024];
+        
+        let correctCat = "";
+        if (val < 0) correctCat = "neg";
+        else if (val > bnpGrowth) correctCat = "high";
+        else correctCat = "mid";
+
+        const options = logicTexts[key];
+        
+        let descOpts = [
+            {val: "high", text: options.high.desc},
+            {val: "mid", text: options.mid.desc},
+            {val: "neg", text: options.neg.desc}
+        ].sort(() => Math.random() - 0.5);
+
+        let chainOpts = [
+            {val: "high", text: options.high.chain},
+            {val: "mid", text: options.mid.chain},
+            {val: "neg", text: options.neg.chain}
+        ].sort(() => Math.random() - 0.5);
+
+        container.innerHTML += `
+        <div class="card" id="card_${index}" data-correct="${correctCat}" style="padding:15px; border:1px solid #ddd; margin-bottom:15px;">
+            <h4 style="margin-top:0;">${key} (${val.toFixed(1)}%)</h4>
+            
+            <div style="margin-bottom:10px;">
+                <label style="font-size:0.9em; font-weight:bold;">1. Hvordan påvirker dette væksten?</label><br>
+                <select id="desc_${index}" class="chain-select" style="width:100%; padding:5px; margin-top:5px; font-size:14px;">
+                    <option value="" disabled selected>-- Vælg beskrivelse --</option>
+                    ${descOpts.map(o => `<option value="${o.val}">${o.text}</option>`).join('')}
+                </select>
+            </div>
+            
+            <div>
+                <label style="font-size:0.9em; font-weight:bold;">2. Vælg kausalkæden:</label><br>
+                <select id="chain_${index}" class="chain-select" style="width:100%; padding:5px; margin-top:5px; font-size:14px;">
+                    <option value="" disabled selected>-- Vælg kæde --</option>
+                    ${chainOpts.map(o => `<option value="${o.val}">${o.text}</option>`).join('')}
+                </select>
+            </div>
+        </div>`;
+    });
+}
+
+function checkStep4_Part3() {
+    const comps = ["Privat forbrug", "Investeringer", "Eksport", "Offentligt forbrug"];
+    let allCorrect = true;
+
+    comps.forEach((key, index) => {
+        const card = document.getElementById(`card_${index}`);
+        const correctCat = card.dataset.correct;
+        
+        const descSel = document.getElementById(`desc_${index}`);
+        const chainSel = document.getElementById(`chain_${index}`);
+
+        if(descSel.value !== correctCat) {
+            descSel.style.border = "2px solid #e74c3c";
+            allCorrect = false;
+        } else {
+            descSel.style.border = "2px solid #2ecc71";
+        }
+
+        if(chainSel.value !== correctCat) {
+            chainSel.style.border = "2px solid #e74c3c";
+            allCorrect = false;
+        } else {
+            chainSel.style.border = "2px solid #2ecc71";
+        }
+    });
+
+    const fb = document.getElementById("fb4_3");
+    fb.style.display = "block";
+    
+    if(allCorrect) {
+        fb.className = "feedback success";
+        fb.innerHTML = "<strong>Fremragende!</strong> Du har analyseret alle sammenhænge korrekt.";
+        setTimeout(showVictory, 2000); 
+    } else {
+        fb.className = "feedback error";
+        fb.innerHTML = "Der er fejl i dine valg. <br>Husk reglerne: Negativ vækst trækker ned, lav vækst giver mindre bidrag, og høj vækst (over BNP) er en driver.";
+    }
 }
 </script>
 
