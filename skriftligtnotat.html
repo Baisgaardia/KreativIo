@@ -26,7 +26,7 @@
       import saveAs from 'file-saver';
 
       // --- Inlined from services/documentService.ts ---
-      const createHtmlContentForDoc = (sections) => {
+      const createHtmlContentForDoc = (sections, metadata) => {
         let html = `
           <!DOCTYPE html>
           <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -38,6 +38,7 @@
               h1 { font-size: 16pt; font-weight: bold; color: #000000; }
               h2 { font-size: 14pt; font-weight: bold; color: #000000; }
               p { margin: 0 0 1em 0; }
+              .metadata { font-size: 1pt; color: #ffffff; margin-top: 0; border: none; padding: 0; user-select: none; }
             </style>
           </head>
           <body>
@@ -52,12 +53,18 @@
             });
           }
         });
-        html += `</body></html>`;
+
+        // Add hidden metadata at the bottom
+        html += `
+            <div class="metadata">
+              Dokument-metadata - Sessionstid: ${metadata.sessionTime}, Ulovlige indsættelsesforsøg: ${metadata.attemptCount}
+            </div>
+          </body></html>`;
         return html;
       };
 
-      const generateDocx = (sections) => {
-        const htmlContent = createHtmlContentForDoc(sections);
+      const generateDocx = (sections, metadata) => {
+        const htmlContent = createHtmlContentForDoc(sections, metadata);
         const blob = new Blob([htmlContent], {
           type: 'application/vnd.ms-word'
         });
@@ -136,7 +143,7 @@
       };
 
       // --- Inlined Component: NoteSection ---
-      const NoteSection = ({ section, onContentChange }) => {
+      const NoteSection = ({ section, onContentChange, onIllegalAttempt }) => {
         const [wordCount, setWordCount] = useState(0);
         const [pasteWarning, setPasteWarning] = useState(false);
         const [isLocked, setIsLocked] = useState(false);
@@ -187,8 +194,9 @@
           onContentChange(section.id, e.target.value);
         };
 
-        const handlePaste = (e) => {
+        const handlePasteOrDrop = (e) => {
           e.preventDefault();
+          onIllegalAttempt();
           setPasteWarning(true);
           setTimeout(() => setPasteWarning(false), 3000);
         };
@@ -221,7 +229,18 @@
           ),
           React.createElement(
             'div', { className: "relative" },
-            React.createElement('textarea', { value: section.content, onChange: handleChange, onPaste: handlePaste, onContextMenu: (e) => e.preventDefault(), rows: 8, className: "w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-y", placeholder: "Skriv her...", disabled: isLocked }),
+            React.createElement('textarea', { 
+              value: section.content, 
+              onChange: handleChange, 
+              onPaste: handlePasteOrDrop, 
+              onDrop: handlePasteOrDrop,
+              onDragOver: (e) => e.preventDefault(),
+              onContextMenu: (e) => e.preventDefault(), 
+              rows: 8, 
+              className: "w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-y", 
+              placeholder: "Skriv her...", 
+              disabled: isLocked 
+            }),
             pasteWarning && React.createElement(
               'div', { className: "absolute top-2 right-2 bg-red-100 border border-red-400 text-red-700 px-3 py-1 rounded-md text-sm shadow-lg" },
               React.createElement('i', { className: "fas fa-exclamation-triangle mr-2" }),
@@ -264,6 +283,9 @@
         const [sections, setSections] = useState(initialSections);
         const [isHelpVisible, setHelpVisible] = useState(false);
         const [isStructureVisible, setStructureVisible] = useState(false);
+        const [illegalAttempts, setIllegalAttempts] = useState(0);
+        
+        const startTimeRef = useRef(Date.now());
 
         const handleContentChange = useCallback((id, newContent) => {
           setSections(prevSections =>
@@ -273,6 +295,10 @@
           );
         }, []);
 
+        const incrementIllegalAttempts = useCallback(() => {
+          setIllegalAttempts(prev => prev + 1);
+        }, []);
+
         const totalWordCount = useMemo(() => {
           return sections.reduce((count, section) => {
             const words = section.content.trim().split(/\s+/).filter(Boolean);
@@ -280,8 +306,21 @@
           }, 0);
         }, [sections]);
 
+        const formatSessionTime = () => {
+          const now = Date.now();
+          const diffInMs = now - startTimeRef.current;
+          const totalSeconds = Math.floor(diffInMs / 1000);
+          const minutes = Math.floor(totalSeconds / 60);
+          const seconds = totalSeconds % 60;
+          return `${minutes} minutter og ${seconds} sekunder`;
+        };
+
         const handleDownload = () => {
-          generateDocx(sections);
+          const metadata = {
+            sessionTime: formatSessionTime(),
+            attemptCount: illegalAttempts
+          };
+          generateDocx(sections, metadata);
         };
 
         const helpContent = [
@@ -307,7 +346,12 @@
             React.createElement(
               'div', { className: "grid grid-cols-1 gap-8" },
               sections.map((section) =>
-                React.createElement(NoteSection, { key: section.id, section: section, onContentChange: handleContentChange })
+                React.createElement(NoteSection, { 
+                  key: section.id, 
+                  section: section, 
+                  onContentChange: handleContentChange,
+                  onIllegalAttempt: incrementIllegalAttempts
+                })
               )
             )
           ),
