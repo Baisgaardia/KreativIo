@@ -1,0 +1,333 @@
+
+<!DOCTYPE html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Den Digitale Notat-ø</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "file-saver": "https://esm.sh/file-saver@2.0.5"
+      }
+    }
+    </script>
+  </head>
+  <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+    <div id="root"></div>
+
+    <script type="module">
+      import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+      import ReactDOM from 'react-dom/client';
+      import saveAs from 'file-saver';
+
+      // --- Inlined from services/documentService.ts ---
+      const createHtmlContentForDoc = (sections) => {
+        let html = `
+          <!DOCTYPE html>
+          <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+          <head>
+            <meta charset='utf-8'>
+            <title>Notat - International Økonomi A</title>
+            <style>
+              body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
+              h1 { font-size: 16pt; font-weight: bold; color: #000000; }
+              h2 { font-size: 14pt; font-weight: bold; color: #000000; }
+              p { margin: 0 0 1em 0; }
+            </style>
+          </head>
+          <body>
+            <h1>Notat - International Økonomi A</h1>
+        `;
+        sections.forEach(section => {
+          if (section.content.trim()) {
+            html += `<h2>${section.title}</h2>`;
+            const paragraphs = section.content.trim().split('\n').filter(p => p.trim() !== '');
+            paragraphs.forEach(p => {
+              html += `<p>${p}</p>`;
+            });
+          }
+        });
+        html += `</body></html>`;
+        return html;
+      };
+
+      const generateDocx = (sections) => {
+        const htmlContent = createHtmlContentForDoc(sections);
+        const blob = new Blob([htmlContent], {
+          type: 'application/vnd.ms-word'
+        });
+        saveAs(blob, 'notat_international_oekonomi.doc');
+      };
+
+
+      // --- Inlined Component: IconButton ---
+      const IconButton = ({ onClick, icon, label, className = '', disabled = false }) => {
+        return React.createElement(
+          'button',
+          {
+            onClick: onClick,
+            'aria-label': label,
+            disabled: disabled,
+            className: `flex items-center space-x-2 px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed ${className}`
+          },
+          React.createElement('i', { className: icon }),
+          React.createElement('span', { className: "hidden sm:inline" }, label)
+        );
+      };
+
+      // --- Inlined Component: Footer ---
+      const Footer = ({ totalWordCount, onDownload }) => {
+        const isDownloadDisabled = totalWordCount === 0;
+        return React.createElement(
+          'footer',
+          { className: "bg-white dark:bg-gray-800 shadow-top sticky bottom-0 z-10 border-t dark:border-gray-700" },
+          React.createElement(
+            'div',
+            { className: "container mx-auto px-4 py-3 flex justify-between items-center" },
+            React.createElement(
+              'div',
+              { className: "text-sm md:text-base" },
+              React.createElement('span', { className: "font-semibold text-gray-700 dark:text-gray-200" }, "Total antal ord: "),
+              React.createElement('span', { className: `font-bold ${totalWordCount >= 600 ? 'text-green-600 dark:text-green-400' : 'text-gray-800 dark:text-gray-100'}` }, totalWordCount),
+              React.createElement('span', { className: "text-gray-500 dark:text-gray-400" }, " / 600")
+            ),
+            React.createElement(
+              'button',
+              {
+                onClick: onDownload,
+                disabled: isDownloadDisabled,
+                className: "flex items-center space-x-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 disabled:scale-100"
+              },
+              React.createElement('i', { className: "fa-solid fa-file-arrow-down" }),
+              React.createElement('span', null, "Download Notat")
+            )
+          )
+        );
+      };
+
+      // --- Inlined Component: HelpModal ---
+      const HelpModal = ({ isVisible, onClose }) => {
+        if (!isVisible) return null;
+        const helpContent = [
+          { title: 'Finanspolitik', content: 'Valg af stram/lempelig finanspolitik. Forklar, hvordan den forventes at fungere på kort og lang sigt i forhold til udfordringen. Man kan eventuelt bruge visualisering af flowcharts (f.eks. fra Kreative Øvelser i IØ) til dette. Dernæst skal man forklare crowding in- og crowding out-effekten. Ved lempelig finanspolitik er der forventning om crowding out-effekten, og ved stram finanspolitik er der forventning om crowding in-effekten. For de fleste lande, især EU-lande (undtagen Polen eller andre lande der har egen valuta), er løsningsforslag med finanspolitik ikke en generel for/imod diskussion af lempelig finanspolitik. I stedet handler diskussionen ofte om at diskutere forskellen på en indirekte effekt og en direkte effekt af brugen af forskellige finanspolitiske instrumenter. I notatets diskussion kunne det være om det er effektivt at sætte gang i økonomien indirekte (f.eks. ved at sænke skat, moms, afgifter) eller direkte (ved at øge statens udgifter ved at fokusere på offentligt forbrug, offentlige ansættelser eller offentlige investeringer). Hvad løser bedst landets udfordring?' },
+          { title: 'Arbejdsmarkedspolitik', content: 'Udover finanspolitik og for visse lande penge-/valutapolitik, kan fire typer af arbejdsmarkedspolitik også bringes i spil for at håndtere arbejdsmarkedsproblemer.' },
+          { title: 'Penge- og Valutapolitik', content: 'For lande med egen valuta, som f.eks. Polen, er det muligt at føre pengepolitik (ændre renten eller udbud/efterspørgsel af valuta) og valutapolitik. Lande i Eurozonen er meget begrænsede heri, da de hverken kan ændre renten via pengepolitik eller føre selvstændig valutapolitik.' },
+          { title: 'Vurder politikker over for hinanden', content: 'Diskuter fordele og ulemper ved forskellige politiske tilgange eller kombinationer af politikker i lyset af notatets udfordringer. Hvilke politikker er mest hensigtsmæssige for at håndtere de udfordringer, du identificerede i problemstillingen og analysen? Hvilke afvejninger (trade-offs) er der mellem forskellige mål (f.eks. vækst kontra inflationsbekæmpelse)?' },
+          { title: 'Faglig argumentation', content: 'Alle argumenter skal være fagligt funderede og understøttet af besvarelse af opgave 1 og 2.' }
+        ];
+
+        return React.createElement(
+            'div', { className: "fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4", onClick: onClose },
+            React.createElement(
+                'div', { className: "bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto", onClick: (e) => e.stopPropagation() },
+                React.createElement(
+                    'div', { className: "sticky top-0 bg-white dark:bg-gray-800 p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center" },
+                    React.createElement('h2', { className: "text-2xl font-bold text-gray-800 dark:text-gray-100" }, "Faglig Tjekliste"),
+                    React.createElement('button', { onClick: onClose, className: "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white transition" },
+                        React.createElement('i', { className: "fas fa-times text-2xl" })
+                    )
+                ),
+                React.createElement('div', { className: "p-6 md:p-8 space-y-6" },
+                    helpContent.map((section, index) => React.createElement('div', { key: index },
+                        React.createElement('h3', { className: "text-lg font-semibold text-blue-700 dark:text-blue-400 mb-3" }, section.title),
+                        React.createElement('p', { className: "text-gray-700 dark:text-gray-300 leading-relaxed" }, section.content)
+                    ))
+                )
+            )
+        );
+      };
+
+      // --- Inlined Component: NoteSection ---
+      const NoteSection = ({ section, onContentChange }) => {
+        const [wordCount, setWordCount] = useState(0);
+        const [pasteWarning, setPasteWarning] = useState(false);
+        const [isLocked, setIsLocked] = useState(false);
+        const [lockoutTimer, setLockoutTimer] = useState(30);
+
+        const lastTypedTime = useRef(Date.now());
+        const charCountSinceLastCheck = useRef(0);
+        const timerRef = useRef(null);
+
+        useEffect(() => {
+          const words = section.content.trim().split(/\s+/).filter(Boolean);
+          setWordCount(words.length);
+        }, [section.content]);
+
+        useEffect(() => {
+          if (isLocked) {
+            setLockoutTimer(30);
+            timerRef.current = window.setInterval(() => {
+              setLockoutTimer(prev => {
+                if (prev <= 1) {
+                  clearInterval(timerRef.current);
+                  setIsLocked(false);
+                  return 0;
+                }
+                return prev - 1;
+              });
+            }, 1000);
+          }
+          return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+          };
+        }, [isLocked]);
+
+        const handleChange = (e) => {
+          if (isLocked) return;
+          const VELOCITY_THRESHOLD = 20;
+          const currentTime = Date.now();
+          const timeDiff = currentTime - lastTypedTime.current;
+          charCountSinceLastCheck.current += e.target.value.length - section.content.length;
+          if (timeDiff > 100) {
+            const velocity = charCountSinceLastCheck.current;
+            if (velocity > VELOCITY_THRESHOLD) {
+              setIsLocked(true);
+            }
+            charCountSinceLastCheck.current = 0;
+            lastTypedTime.current = currentTime;
+          }
+          onContentChange(section.id, e.target.value);
+        };
+
+        const handlePaste = (e) => {
+          e.preventDefault();
+          setPasteWarning(true);
+          setTimeout(() => setPasteWarning(false), 3000);
+        };
+
+        const readAloud = () => {
+          if ('speechSynthesis' in window && section.content) {
+            const utterance = new SpeechSynthesisUtterance(section.content);
+            utterance.lang = 'da-DK';
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(utterance);
+          }
+        };
+
+        return React.createElement(
+          'div', { className: "bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 transition-all duration-300 relative" },
+          isLocked && React.createElement(
+            'div', { className: "absolute inset-0 bg-gray-900 bg-opacity-80 flex flex-col justify-center items-center z-20 rounded-lg" },
+            React.createElement('i', { className: "fas fa-lock text-red-500 text-4xl mb-4" }),
+            React.createElement('p', { className: "text-white text-lg font-bold" }, "For hurtig indtastning registreret."),
+            React.createElement('p', { className: "text-white" }, "Tekstfeltet er låst i ", React.createElement('span', { className: "font-mono text-xl" }, lockoutTimer), " sekunder.")
+          ),
+          React.createElement(
+            'div', { className: "flex justify-between items-start mb-2" },
+            React.createElement(
+              'div', null,
+              React.createElement('h2', { className: "text-xl font-bold text-blue-700 dark:text-blue-400" }, section.title),
+              React.createElement('p', { className: "text-sm text-gray-500 dark:text-gray-400 italic" }, section.subtitle)
+            ),
+            React.createElement(IconButton, { onClick: readAloud, icon: "fa-solid fa-volume-high", label: "Læs højt", className: "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200", disabled: !section.content })
+          ),
+          React.createElement(
+            'div', { className: "relative" },
+            React.createElement('textarea', { value: section.content, onChange: handleChange, onPaste: handlePaste, onContextMenu: (e) => e.preventDefault(), rows: 8, className: "w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-y", placeholder: "Skriv her...", disabled: isLocked }),
+            pasteWarning && React.createElement(
+              'div', { className: "absolute top-2 right-2 bg-red-100 border border-red-400 text-red-700 px-3 py-1 rounded-md text-sm shadow-lg" },
+              React.createElement('i', { className: "fas fa-exclamation-triangle mr-2" }),
+              "Indsætning er ikke tilladt – skriv dine egne ord."
+            )
+          ),
+          React.createElement('div', { className: "text-right mt-2 text-sm text-gray-600 dark:text-gray-400" }, "Ord: ", React.createElement('span', { className: "font-semibold" }, wordCount))
+        );
+      };
+
+      // --- Inlined Component: Header ---
+      const Header = ({ onHelpClick }) => {
+        const handleDownloadHtml = () => {
+          // Temporarily remove the script content before saving
+          const scriptContent = document.querySelector('body > script[type="module"]').innerHTML;
+          document.querySelector('body > script[type="module"]').innerHTML = "/* App-logik fjernet for at gøre filen mindre. Genindlæs for at bruge appen. */";
+
+          const htmlContent = document.documentElement.outerHTML;
+          const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+          saveAs(blob, 'den-digitale-notat-oe.html');
+          
+          // Restore script content
+          document.querySelector('body > script[type="module"]').innerHTML = scriptContent;
+        };
+
+        return React.createElement(
+          'header', { className: "bg-white dark:bg-gray-800 shadow-md sticky top-0 z-10" },
+          React.createElement(
+            'div', { className: "container mx-auto px-4 py-3 flex justify-between items-center" },
+            React.createElement(
+              'div', { className: "flex items-center space-x-3" },
+              React.createElement('i', { className: "fas fa-anchor text-2xl text-blue-600 dark:text-blue-400" }),
+              React.createElement('h1', { className: "text-xl md:text-2xl font-bold text-gray-800 dark:text-gray-100" }, "Den Digitale Notat-ø")
+            ),
+            React.createElement(
+                'div', {className: "flex items-center space-x-2"},
+                React.createElement(IconButton, { onClick: handleDownloadHtml, icon: "fa-solid fa-file-code", label: "Download HTML", className: "bg-gray-600 hover:bg-gray-700 text-white" }),
+                React.createElement(IconButton, { onClick: onHelpClick, icon: "fa-solid fa-circle-question", label: "Faglig hjælp", className: "bg-blue-600 hover:bg-blue-700 text-white" })
+            )
+          )
+        );
+      };
+
+      // --- Inlined Component: App ---
+      const App = () => {
+        const initialSections = [
+          { id: 'problem', title: 'Konkret problemstilling', subtitle: 'Redegørende/Analyserende', content: '' },
+          { id: 'argumentation_solution', title: 'Faglig argumentation og løsningsforslag', subtitle: 'Analyserende/Vurderende', content: '' },
+          { id: 'pros_cons', title: 'Sammenstilling af fordele/ulemper', subtitle: 'Vurderende', content: '' },
+          { id: 'conclusion', title: 'Konklusion og anbefalinger', subtitle: 'Vurderende', content: '' }
+        ];
+
+        const [sections, setSections] = useState(initialSections);
+        const [isHelpVisible, setHelpVisible] = useState(false);
+
+        const handleContentChange = useCallback((id, newContent) => {
+          setSections(prevSections =>
+            prevSections.map(section =>
+              section.id === id ? { ...section, content: newContent } : section
+            )
+          );
+        }, []);
+
+        const totalWordCount = useMemo(() => {
+          return sections.reduce((count, section) => {
+            const words = section.content.trim().split(/\s+/).filter(Boolean);
+            return count + words.length;
+          }, 0);
+        }, [sections]);
+
+        const handleDownload = () => {
+          generateDocx(sections);
+        };
+
+        return React.createElement(
+          'div', { className: "min-h-screen flex flex-col font-sans transition-colors duration-300" },
+          React.createElement(Header, { onHelpClick: () => setHelpVisible(true) }),
+          React.createElement(
+            'main', { className: "flex-grow container mx-auto px-4 py-8" },
+            React.createElement(
+              'div', { className: "grid grid-cols-1 gap-8" },
+              sections.map((section) =>
+                React.createElement(NoteSection, { key: section.id, section: section, onContentChange: handleContentChange })
+              )
+            )
+          ),
+          React.createElement(Footer, { totalWordCount: totalWordCount, onDownload: handleDownload }),
+          React.createElement(HelpModal, { isVisible: isHelpVisible, onClose: () => setHelpVisible(false) })
+        );
+      };
+
+      // --- Inlined from index.tsx: Mount the app ---
+      const rootElement = document.getElementById('root');
+      if (!rootElement) {
+        throw new Error("Could not find root element to mount to");
+      }
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(React.createElement(React.StrictMode, null, React.createElement(App)));
+
+    </script>
+  </body>
+</html>
