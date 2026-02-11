@@ -111,15 +111,8 @@
       };
 
       // --- Inlined Component: HelpModal ---
-      const HelpModal = ({ isVisible, onClose }) => {
+      const HelpModal = ({ isVisible, onClose, title, helpContent }) => {
         if (!isVisible) return null;
-        const helpContent = [
-          { title: 'Finanspolitik', content: 'Valg af stram/lempelig finanspolitik. Forklar, hvordan den forventes at fungere på kort og lang sigt i forhold til udfordringen. Man kan eventuelt bruge visualisering af flowcharts (f.eks. fra Kreative Øvelser i IØ) til dette. Dernæst skal man forklare crowding in- og crowding out-effekten. Ved lempelig finanspolitik er der forventning om crowding out-effekten, og ved stram finanspolitik er der forventning om crowding in-effekten. For de fleste lande, især EU-lande (undtagen Polen eller andre lande der har egen valuta), er løsningsforslag med finanspolitik ikke en generel for/imod diskussion af lempelig finanspolitik. I stedet handler diskussionen ofte om at diskutere forskellen på en indirekte effekt og en direkte effekt af brugen af forskellige finanspolitiske instrumenter. I notatets diskussion kunne det være om det er effektivt at sætte gang i økonomien indirekte (f.eks. ved at sænke skat, moms, afgifter) eller direkte (ved at øge statens udgifter ved at fokusere på offentligt forbrug, offentlige ansættelser eller offentlige investeringer). Hvad løser bedst landets udfordring?' },
-          { title: 'Arbejdsmarkedspolitik', content: 'Udover finanspolitik og for visse lande penge-/valutapolitik, kan fire typer af arbejdsmarkedspolitik også bringes i spil for at håndtere arbejdsmarkedsproblemer.' },
-          { title: 'Penge- og Valutapolitik', content: 'For lande med egen valuta, som f.eks. Polen, er det muligt at føre pengepolitik (ændre renten eller udbud/efterspørgsel af valuta) og valutapolitik. Lande i Eurozonen er meget begrænsede heri, da de hverken kan ændre renten via pengepolitik eller føre selvstændig valutapolitik.' },
-          { title: 'Vurder politikker over for hinanden', content: 'Diskuter fordele og ulemper ved forskellige politiske tilgange eller kombinationer af politikker i lyset af notatets udfordringer. Hvilke politikker er mest hensigtsmæssige for at håndtere de udfordringer, du identificerede i problemstillingen og analysen? Hvilke afvejninger (trade-offs) er der mellem forskellige mål (f.eks. vækst kontra inflationsbekæmpelse)?' },
-          { title: 'Faglig argumentation', content: 'Alle argumenter skal være fagligt funderede og understøttet af besvarelse af opgave 1 og 2.' }
-        ];
 
         return React.createElement(
             'div', { className: "fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4", onClick: onClose },
@@ -127,15 +120,15 @@
                 'div', { className: "bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto", onClick: (e) => e.stopPropagation() },
                 React.createElement(
                     'div', { className: "sticky top-0 bg-white dark:bg-gray-800 p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center" },
-                    React.createElement('h2', { className: "text-2xl font-bold text-gray-800 dark:text-gray-100" }, "Faglig Tjekliste"),
+                    React.createElement('h2', { className: "text-2xl font-bold text-gray-800 dark:text-gray-100" }, title),
                     React.createElement('button', { onClick: onClose, className: "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white transition" },
                         React.createElement('i', { className: "fas fa-times text-2xl" })
                     )
                 ),
                 React.createElement('div', { className: "p-6 md:p-8 space-y-6" },
                     helpContent.map((section, index) => React.createElement('div', { key: index },
-                        React.createElement('h3', { className: "text-lg font-semibold text-blue-700 dark:text-blue-400 mb-3" }, section.title),
-                        React.createElement('p', { className: "text-gray-700 dark:text-gray-300 leading-relaxed" }, section.content)
+                        section.title && React.createElement('h3', { className: "text-lg font-semibold text-blue-700 dark:text-blue-400 mb-3" }, section.title),
+                        React.createElement('p', { className: "text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap" }, section.content)
                     ))
                 )
             )
@@ -240,20 +233,7 @@
       };
 
       // --- Inlined Component: Header ---
-      const Header = ({ onHelpClick }) => {
-        const handleDownloadHtml = () => {
-          // Temporarily remove the script content before saving
-          const scriptContent = document.querySelector('body > script[type="module"]').innerHTML;
-          document.querySelector('body > script[type="module"]').innerHTML = "/* App-logik fjernet for at gøre filen mindre. Genindlæs for at bruge appen. */";
-
-          const htmlContent = document.documentElement.outerHTML;
-          const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-          saveAs(blob, 'den-digitale-notat-oe.html');
-          
-          // Restore script content
-          document.querySelector('body > script[type="module"]').innerHTML = scriptContent;
-        };
-
+      const Header = ({ onHelpClick, onStructureClick }) => {
         return React.createElement(
           'header', { className: "bg-white dark:bg-gray-800 shadow-md sticky top-0 z-10" },
           React.createElement(
@@ -265,7 +245,7 @@
             ),
             React.createElement(
                 'div', {className: "flex items-center space-x-2"},
-                React.createElement(IconButton, { onClick: handleDownloadHtml, icon: "fa-solid fa-file-code", label: "Download HTML", className: "bg-gray-600 hover:bg-gray-700 text-white" }),
+                React.createElement(IconButton, { onClick: onStructureClick, icon: "fa-solid fa-list-check", label: "Notatets opbygning", className: "bg-blue-600 hover:bg-blue-700 text-white" }),
                 React.createElement(IconButton, { onClick: onHelpClick, icon: "fa-solid fa-circle-question", label: "Faglig hjælp", className: "bg-blue-600 hover:bg-blue-700 text-white" })
             )
           )
@@ -283,6 +263,7 @@
 
         const [sections, setSections] = useState(initialSections);
         const [isHelpVisible, setHelpVisible] = useState(false);
+        const [isStructureVisible, setStructureVisible] = useState(false);
 
         const handleContentChange = useCallback((id, newContent) => {
           setSections(prevSections =>
@@ -303,9 +284,24 @@
           generateDocx(sections);
         };
 
+        const helpContent = [
+          { title: 'Finanspolitik', content: 'Valg af stram/lempelig finanspolitik. Forklar, hvordan den forventes at fungere på kort og lang sigt i forhold til udfordringen. Man kan eventuelt bruge visualisering af flowcharts (f.eks. fra Kreative Øvelser i IØ) til dette. Dernæst skal man forklare crowding in- og crowding out-effekten. Ved lempelig finanspolitik er der forventning om crowding out-effekten, og ved stram finanspolitik er der forventning om crowding in-effekten. For de fleste lande, især EU-lande (undtagen Polen eller andre lande der har egen valuta), er løsningsforslag med finanspolitik ikke en generel for/imod diskussion af lempelig finanspolitik. I stedet handler diskussionen ofte om at diskutere forskellen på en indirekte effekt og en direkte effekt af brugen af forskellige finanspolitiske instrumenter. I notatets diskussion kunne det være om det er effektivt at sætte gang i økonomien indirekte (f.eks. ved at sænke skat, moms, afgifter) eller direkte (ved at øge statens udgifter ved at fokusere på offentligt forbrug, offentlige ansættelser eller offentlige investeringer). Hvad løser bedst landets udfordring?' },
+          { title: 'Arbejdsmarkedspolitik', content: 'Udover finanspolitik og for visse lande penge-/valutapolitik, kan fire typer af arbejdsmarkedspolitik også bringes i spil for at håndtere arbejdsmarkedsproblemer.' },
+          { title: 'Penge- og Valutapolitik', content: 'For lande med egen valuta, som f.eks. Polen, er det muligt at føre pengepolitik (ændre renten eller udbud/efterspørgsel af valuta) og valutapolitik. Lande i Eurozonen er meget begrænsede heri, da de hverken kan ændre renten via pengepolitik eller føre selvstændig valutapolitik.' },
+          { title: 'Vurder politikker over for hinanden', content: 'Diskuter fordele og ulemper ved forskellige politiske tilgange eller kombinationer af politikker i lyset af notatets udfordringer. Hvilke politikker er mest hensigtsmæssige for at håndtere de udfordringer, du identificerede i problemstillingen og analysen? Hvilke afvejninger (trade-offs) er der mellem forskellige mål (f.eks. vækst kontra inflationsbekæmpelse)?' },
+          { title: 'Faglig argumentation', content: 'Alle argumenter skal være fagligt funderede og understøttet af besvarelse af opgave 1 og 2.' }
+        ];
+
+        const structureContent = [
+          {
+            title: '',
+            content: "Elementerne i et notat kan således typisk består af:\n\n• En konkret problemstilling\n• To eller flere løsningsforslag\n• En faglig argumentation, hvor konsekvenserne af løsningsforslagene præsenteres\n• Sammenstilling af løsningsforslag med tilhørende præcisering af fordele og ulemper\n• En konklusion med tilhørende anbefalinger (til løsning på problemet)"
+          }
+        ];
+
         return React.createElement(
           'div', { className: "min-h-screen flex flex-col font-sans transition-colors duration-300" },
-          React.createElement(Header, { onHelpClick: () => setHelpVisible(true) }),
+          React.createElement(Header, { onHelpClick: () => setHelpVisible(true), onStructureClick: () => setStructureVisible(true) }),
           React.createElement(
             'main', { className: "flex-grow container mx-auto px-4 py-8" },
             React.createElement(
@@ -316,7 +312,8 @@
             )
           ),
           React.createElement(Footer, { totalWordCount: totalWordCount, onDownload: handleDownload }),
-          React.createElement(HelpModal, { isVisible: isHelpVisible, onClose: () => setHelpVisible(false) })
+          React.createElement(HelpModal, { isVisible: isHelpVisible, onClose: () => setHelpVisible(false), title: "Faglig Tjekliste", helpContent: helpContent }),
+          React.createElement(HelpModal, { isVisible: isStructureVisible, onClose: () => setStructureVisible(false), title: "Notatets opbygning", helpContent: structureContent })
         );
       };
 
