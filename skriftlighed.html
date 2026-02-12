@@ -340,6 +340,12 @@
           saveAs(new Blob([html], { type: 'application/vnd.ms-word' }), `${studentInfo.noteTitle || 'Uden_titel'}.doc`);
         };
 
+        const handleDispositionIllegalAttempt = (e) => {
+            e.preventDefault();
+            setIllegalAttempts(p => p + 1);
+            alert("Indsætning er ikke tilladt i kladden.");
+        };
+
         return React.createElement('div', { className: "min-h-screen flex flex-col font-sans overflow-hidden" },
           // Header
           React.createElement('header', { className: "bg-white dark:bg-gray-800 border-b dark:border-gray-700 shadow-sm px-6 py-4 flex justify-between items-center z-50" },
@@ -397,7 +403,9 @@
             React.createElement('textarea', {
               value: dispositionText,
               onChange: (e) => setDispositionText(e.target.value),
-              onPaste: (e) => { e.preventDefault(); setIllegalAttempts(p => p + 1); alert("Indsætning ikke tilladt i kladde."); },
+              onPaste: handleDispositionIllegalAttempt,
+              onDrop: handleDispositionIllegalAttempt,
+              onDragOver: (e) => e.preventDefault(),
               className: "w-full h-96 p-4 border dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none",
               placeholder: "Dine stikord her..."
             })
