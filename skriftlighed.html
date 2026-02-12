@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Omlagt Skriftlighed</title>
+    <meta name="description" content="En browserbaseret skriveplatform til at træne omlagt skriftlighed i forskellige fag. Værktøjet forhindrer copy-paste og AI-genereret tekst ved at fremtvinge manuel indtastning og stilladsere faglig argumentation, alt sammen lokalt i browseren uden datalagring." />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+      }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "file-saver": "https://esm.sh/file-saver@2.0.5"
+      }
+    }
+    </script>
+    <style>
+      .hide-scrollbar::-webkit-scrollbar { display: none; }
+      .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+  </head>
+  <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
+    <div id="root"></div>
+
+    <script type="module">
+      import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+      import ReactDOM from 'react-dom/client';
+      import saveAs from 'file-saver';
+
+      // --- Services ---
+      const createHtmlContentForDoc = (content, metadata, studentInfo) => {
+        const title = studentInfo.noteTitle || 'Uden titel';
+        let html = `
+          <!DOCTYPE html>
+          <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+          <head>
+            <meta charset='utf-8'>
+            <title>${title}</title>
+            <style>
+              body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; }
+              h1 { font-size: 16pt; font-weight: bold; color: #000000; margin-bottom: 5pt; }
+              .header-info { font-size: 11pt; color: #555555; margin-bottom: 20pt; border-bottom: 1px solid #000; padding-bottom: 10pt; }
+              p { margin: 0 0 1em 0; }
+              .metadata { font-size: 1pt; color: #ffffff; margin-top: 50pt; border: none; padding: 0; user-select: none; }
+            </style>
+          </head>
+          <body>
+            <h1>${title}</h1>
+            <div class="header-info">
+              Navn: ${studentInfo.studentName || '—'}<br>
+              Klasse: ${studentInfo.studentClass || '—'}
+            </div>
+            ${content.trim().split('\n').map(p => `<p>${p}</p>`).join('')}
+            <div class="metadata">
+              Dokument-metadata - Sessionstid: ${metadata.sessionTime}, Ulovlige indsættelsesforsøg: ${metadata.attemptCount}
+            </div>
+          </body></html>`;
+        return html;
+      };
+
+      // --- Components ---
+      const IconButton = ({ onClick, icon, label, className = '', disabled = false, title = '' }) => {
+        return React.createElement(
+          'button',
+          {
+            onClick: onClick,
+            'aria-label': label,
+            title: title || label,
+            disabled: disabled,
+            className: `flex items-center space-x-2 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed ${className}`
+          },
+          React.createElement('i', { className: icon }),
+          label && React.createElement('span', { className: "hidden sm:inline" }, label)
+        );
+      };
+
+      const SafeInfoInput = ({ value, onChange, placeholder, label, onIllegalAttempt }) => {
+        const [pasteWarning, setPasteWarning] = useState(false);
+        const [isLocked, setIsLocked] = useState(false);
+        const [lockoutTimer, setLockoutTimer] = useState(30);
+        const lastTypedTime = useRef(Date.now());
+        const charCountSinceLastCheck = useRef(0);
+        const timerRef = useRef(null);
+
+        useEffect(() => {
+          if (isLocked) {
+            setLockoutTimer(30);
+            timerRef.current = window.setInterval(() => {
+              setLockoutTimer(prev => {
+                if (prev <= 1) {
+                  clearInterval(timerRef.current);
+                  setIsLocked(false);
+                  return 0;
+                }
+                return prev - 1;
+              });
+            }, 1000);
+          }
+          return () => { if (timerRef.current) clearInterval(timerRef.current); };
+        }, [isLocked]);
+
+        const handleChange = (e) => {
+          if (isLocked) return;
+          const VELOCITY_THRESHOLD = 25;
+          const currentTime = Date.now();
+          const timeDiff = currentTime - lastTypedTime.current;
+          charCountSinceLastCheck.current += Math.abs(e.target.value.length - value.length);
+          if (timeDiff > 100) {
+            if (charCountSinceLastCheck.current > VELOCITY_THRESHOLD) setIsLocked(true);
+            charCountSinceLastCheck.current = 0;
+            lastTypedTime.current = currentTime;
+          }
+          onChange(e.target.value);
+        };
+
+        const handlePasteOrDrop = (e) => {
+          e.preventDefault();
+          onIllegalAttempt();
+          setPasteWarning(true);
+          setTimeout(() => setPasteWarning(false), 3000);
+        };
+
+        return React.createElement('div', { className: "relative flex flex-col" },
+          React.createElement('label', { className: "block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1" }, label),
+          React.createElement('div', { className: "relative" },
+            React.createElement('input', {
+              type: "text",
+              value: value,
+              onChange: handleChange,
+              onPaste: handlePasteOrDrop,
+              onDrop: handlePasteOrDrop,
+              onDragOver: (e) => e.preventDefault(),
+              onContextMenu: (e) => e.preventDefault(),
+              disabled: isLocked,
+              className: "w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm transition-all",
+              placeholder: placeholder
+            }),
+            isLocked && React.createElement('div', { className: "absolute inset-0 bg-gray-900 bg-opacity-80 flex justify-center items-center rounded-lg z-10" },
+              React.createElement('span', { className: "text-white text-xs font-bold" }, "LÅST: ", lockoutTimer, "s")
+            ),
+            pasteWarning && React.createElement('div', { className: "absolute -top-10 left-0 bg-red-100 border border-red-400 text-red-700 px-2 py-1 rounded text-[10px] shadow-lg z-20" },
+              "Indsætning blokeret"
+            )
+          )
+        );
+      };
+
+      const MainEditor = ({ content, onChange, onIllegalAttempt }) => {
+        const [isLocked, setIsLocked] = useState(false);
+        const [lockoutTimer, setLockoutTimer] = useState(30);
+        const [pasteWarning, setPasteWarning] = useState(false);
+        const [isSpeaking, setIsSpeaking] = useState(false);
+        const [readingRate, setReadingRate] = useState(1.0);
+
+        const lastTypedTime = useRef(Date.now());
+        const charCountSinceLastCheck = useRef(0);
+        const timerRef = useRef(null);
+
+        useEffect(() => {
+          if (isLocked) {
+            setLockoutTimer(30);
+            timerRef.current = setInterval(() => {
+              setLockoutTimer(prev => {
+                if (prev <= 1) { clearInterval(timerRef.current); setIsLocked(false); return 0; }
+                return prev - 1;
+              });
+            }, 1000);
+          }
+          return () => clearInterval(timerRef.current);
+        }, [isLocked]);
+
+        const handleChange = (e) => {
+          if (isLocked) return;
+          const VELOCITY_THRESHOLD = 30;
+          const currentTime = Date.now();
+          const timeDiff = currentTime - lastTypedTime.current;
+          charCountSinceLastCheck.current += Math.abs(e.target.value.length - content.length);
+          if (timeDiff > 100) {
+            if (charCountSinceLastCheck.current > VELOCITY_THRESHOLD) setIsLocked(true);
+            charCountSinceLastCheck.current = 0;
+            lastTypedTime.current = currentTime;
+          }
+          onChange(e.target.value);
+        };
+
+        const handlePasteOrDrop = (e) => {
+          e.preventDefault();
+          onIllegalAttempt();
+          setPasteWarning(true);
+          setTimeout(() => setPasteWarning(false), 3000);
+        };
+
+        const readAloud = () => {
+          if ('speechSynthesis' in window) {
+            const selection = window.getSelection().toString();
+            const textToRead = selection || content;
+            if (textToRead) {
+              window.speechSynthesis.cancel();
+              const utterance = new SpeechSynthesisUtterance(textToRead);
+              utterance.lang = 'da-DK';
+              utterance.rate = readingRate;
+              utterance.onstart = () => setIsSpeaking(true);
+              utterance.onend = () => setIsSpeaking(false);
+              window.speechSynthesis.speak(utterance);
+            }
+          }
+        };
+
+        const stopReading = () => { window.speechSynthesis.cancel(); setIsSpeaking(false); };
+
+        return React.createElement('div', { className: "flex-grow flex flex-col bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden relative border dark:border-gray-700" },
+          isLocked && React.createElement('div', { className: "absolute inset-0 bg-gray-900 bg-opacity-90 flex flex-col justify-center items-center z-50 transition-opacity" },
+            React.createElement('i', { className: "fas fa-lock text-red-500 text-6xl mb-6 animate-pulse" }),
+            React.createElement('h2', { className: "text-white text-2xl font-bold" }, "Sikkerhedslås aktiveret"),
+            React.createElement('p', { className: "text-gray-300 mt-2" }, "Skrivefeltet er låst i ", React.createElement('span', { className: "font-mono text-3xl text-red-400" }, lockoutTimer), " sekunder.")
+          ),
+          React.createElement('div', { className: "p-4 bg-gray-50 dark:bg-gray-750 border-b dark:border-gray-700 flex justify-between items-center" },
+            React.createElement('div', { className: "flex items-center space-x-4" },
+              React.createElement('span', { className: "text-xs font-bold text-gray-400 uppercase tracking-widest" }, "Hovedtekst"),
+              React.createElement('div', { className: "h-4 w-px bg-gray-300 dark:bg-gray-600" }),
+              React.createElement('div', { className: "flex items-center space-x-2" },
+                React.createElement('span', { className: "text-[10px] text-gray-400" }, "LÆSEHASTIGHED:"),
+                React.createElement('input', {
+                  type: "range", min: "0.5", max: "2", step: "0.1", value: readingRate,
+                  onChange: (e) => setReadingRate(parseFloat(e.target.value)),
+                  className: "w-24 h-1 bg-blue-100 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                }),
+                React.createElement('span', { className: "text-xs font-mono w-6 text-blue-600" }, readingRate.toFixed(1))
+              )
+            ),
+            React.createElement('div', { className: "flex space-x-2" },
+              isSpeaking ?
+                React.createElement(IconButton, { onClick: stopReading, icon: "fa-solid fa-stop", label: "Stop", className: "bg-red-500 hover:bg-red-600 text-white" }) :
+                React.createElement(IconButton, { onClick: readAloud, icon: "fa-solid fa-volume-high", label: "Læs op", className: "bg-blue-100 dark:bg-gray-700 text-blue-600 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-gray-600", disabled: !content })
+            )
+          ),
+          React.createElement('div', { className: "relative flex-grow" },
+            React.createElement('textarea', {
+              value: content, onChange: handleChange, onPaste: handlePasteOrDrop, onDrop: handlePasteOrDrop,
+              onDragOver: (e) => e.preventDefault(), onContextMenu: (e) => e.preventDefault(),
+              className: "w-full h-full p-6 text-lg leading-relaxed focus:outline-none bg-transparent dark:text-gray-100 resize-none font-serif placeholder-gray-300 dark:placeholder-gray-600",
+              placeholder: "Start din besvarelse her...", disabled: isLocked
+            }),
+            pasteWarning && React.createElement('div', { className: "absolute top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-2xl animate-bounce" },
+              React.createElement('i', { className: "fas fa-shield-alt mr-2" }), "Snyd registreret: Indsætning blokeret"
+            )
+          )
+        );
+      };
+
+      const GenericModal = ({ isVisible, onClose, title, children }) => {
+        if (!isVisible) return null;
+        return React.createElement('div', { className: "fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[100] p-4", onClick: onClose },
+          React.createElement('div', { className: "bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col", onClick: e => e.stopPropagation() },
+            React.createElement('div', { className: "p-6 border-b dark:border-gray-700 flex justify-between items-center" },
+              React.createElement('h2', { className: "text-2xl font-bold" }, title),
+              React.createElement('button', { onClick: onClose, className: "text-gray-400 hover:text-gray-600 transition" }, React.createElement('i', { className: "fas fa-times text-2xl" }))
+            ),
+            React.createElement('div', { className: "p-8 overflow-y-auto flex-grow" }, children)
+          )
+        );
+      };
+
+      const App = () => {
+        const [mainText, setMainText] = useState('');
+        const [dispositionText, setDispositionText] = useState('');
+        const [studentName, setStudentName] = useState('');
+        const [studentClass, setStudentClass] = useState('');
+        const [noteTitle, setNoteTitle] = useState('');
+        const [illegalAttempts, setIllegalAttempts] = useState(0);
+        const [isDarkMode, setIsDarkMode] = useState(false);
+        const [isDispVisible, setDispVisible] = useState(false);
+        const [isAboutVisible, setAboutVisible] = useState(false);
+        const [sessionSeconds, setSessionSeconds] = useState(0);
+        const [lastSaved, setLastSaved] = useState(null);
+
+        const startTimeRef = useRef(Date.now());
+
+        // Load
+        useEffect(() => {
+          setMainText(localStorage.getItem('notato_main_text') || '');
+          setDispositionText(localStorage.getItem('notato_disposition') || '');
+          setStudentName(localStorage.getItem('notato_student_name') || '');
+          setStudentClass(localStorage.getItem('notato_student_class') || '');
+          setNoteTitle(localStorage.getItem('notato_note_title') || '');
+          setIllegalAttempts(parseInt(localStorage.getItem('notato_illegal_attempts') || '0', 10));
+          if (localStorage.getItem('notato_dark_mode') === 'true') {
+            setIsDarkMode(true);
+            document.documentElement.classList.add('dark');
+          }
+        }, []);
+
+        // Timer
+        useEffect(() => {
+          const timer = setInterval(() => setSessionSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000)), 1000);
+          return () => clearInterval(timer);
+        }, []);
+
+        // Save
+        useEffect(() => {
+          const saver = setInterval(() => {
+            localStorage.setItem('notato_main_text', mainText);
+            localStorage.setItem('notato_disposition', dispositionText);
+            localStorage.setItem('notato_student_name', studentName);
+            localStorage.setItem('notato_student_class', studentClass);
+            localStorage.setItem('notato_note_title', noteTitle);
+            localStorage.setItem('notato_illegal_attempts', illegalAttempts.toString());
+            setLastSaved(new Date().toLocaleTimeString());
+          }, 5000);
+          return () => clearInterval(saver);
+        }, [mainText, dispositionText, studentName, studentClass, noteTitle, illegalAttempts]);
+
+        const toggleDarkMode = () => {
+          const newMode = !isDarkMode;
+          setIsDarkMode(newMode);
+          localStorage.setItem('notato_dark_mode', newMode.toString());
+          document.documentElement.classList.toggle('dark');
+        };
+
+        const formatTime = (s) => {
+          const h = Math.floor(s / 3600);
+          const m = Math.floor((s % 3600) / 60);
+          const sec = s % 60;
+          return [h, m, sec].map(v => v.toString().padStart(2, '0')).join(':');
+        };
+
+        const wordCount = useMemo(() => mainText.trim().split(/\s+/).filter(Boolean).length, [mainText]);
+
+        const handleDownload = () => {
+          const metadata = { sessionTime: formatTime(sessionSeconds), attemptCount: illegalAttempts };
+          const studentInfo = { studentName, studentClass, noteTitle };
+          const html = createHtmlContentForDoc(mainText, metadata, studentInfo);
+          saveAs(new Blob([html], { type: 'application/vnd.ms-word' }), `${studentInfo.noteTitle || 'Uden_titel'}.doc`);
+        };
+
+        return React.createElement('div', { className: "min-h-screen flex flex-col font-sans overflow-hidden" },
+          // Header
+          React.createElement('header', { className: "bg-white dark:bg-gray-800 border-b dark:border-gray-700 shadow-sm px-6 py-4 flex justify-between items-center z-50" },
+            React.createElement('div', { className: "flex items-center space-x-3 w-1/4" },
+              React.createElement('i', { className: "fas fa-island-tropical text-3xl text-blue-600" }),
+              React.createElement('h1', { className: "text-xl font-black tracking-tight" }, "Omlagt Skriftlighed")
+            ),
+            React.createElement('div', { className: "flex flex-col items-center w-1/2" },
+              React.createElement('div', { className: "bg-gray-100 dark:bg-gray-900 px-6 py-2 rounded-full border dark:border-gray-700 shadow-inner flex items-center space-x-2" },
+                React.createElement('i', { className: "far fa-clock text-blue-500" }),
+                React.createElement('span', { className: "font-mono text-xl font-bold tracking-widest text-blue-600 dark:text-blue-400" }, formatTime(sessionSeconds))
+              )
+            ),
+            React.createElement('div', { className: "flex justify-end space-x-2 w-1/4" },
+              React.createElement(IconButton, { onClick: () => setDispVisible(true), icon: "fa-solid fa-list-ul", label: "Disposition", className: "bg-blue-600 text-white hover:bg-blue-700" }),
+              React.createElement(IconButton, { onClick: () => setAboutVisible(true), icon: "fa-solid fa-info-circle", label: "Info", className: "bg-gray-200 dark:bg-gray-700 dark:text-white" }),
+              React.createElement(IconButton, { onClick: toggleDarkMode, icon: isDarkMode ? "fa-solid fa-sun" : "fa-solid fa-moon", className: "bg-gray-200 dark:bg-gray-700 dark:text-white" })
+            )
+          ),
+
+          // Main
+          React.createElement('main', { className: "flex-grow flex flex-col p-6 space-y-6 container mx-auto h-full" },
+            // Info Bar
+            React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-3 gap-6 bg-white dark:bg-gray-800 p-6 rounded-xl border dark:border-gray-700 shadow-sm" },
+              React.createElement(SafeInfoInput, { label: "Navn", value: studentName, onChange: setStudentName, placeholder: "Dit fulde navn", onIllegalAttempt: () => setIllegalAttempts(prev => prev + 1) }),
+              React.createElement(SafeInfoInput, { label: "Klasse", value: studentClass, onChange: setStudentClass, placeholder: "F.eks. 3.a", onIllegalAttempt: () => setIllegalAttempts(prev => prev + 1) }),
+              React.createElement(SafeInfoInput, { label: "Opgavens Titel", value: noteTitle, onChange: setNoteTitle, placeholder: "Opgavetitel...", onIllegalAttempt: () => setIllegalAttempts(prev => prev + 1) })
+            ),
+            // Editor
+            React.createElement(MainEditor, { content: mainText, onChange: setMainText, onIllegalAttempt: () => setIllegalAttempts(prev => prev + 1) })
+          ),
+
+          // Footer
+          React.createElement('footer', { className: "bg-white dark:bg-gray-800 border-t dark:border-gray-700 px-8 py-3 flex justify-between items-center shadow-lg" },
+            React.createElement('div', { className: "flex items-center space-x-6" },
+              React.createElement('div', null,
+                React.createElement('span', { className: "text-xs font-bold text-gray-400 uppercase mr-2" }, "Status:"),
+                React.createElement('span', { className: "text-sm text-green-500 font-medium" }, "Klar til skrivning")
+              ),
+              React.createElement('div', null,
+                React.createElement('span', { className: "text-xs font-bold text-gray-400 uppercase mr-2" }, "Ordtælling:"),
+                React.createElement('span', { className: "text-sm font-bold" }, wordCount)
+              ),
+              lastSaved && React.createElement('div', { className: "text-xs text-gray-400 italic" }, "Gemt automatisk ", lastSaved)
+            ),
+            React.createElement('button', {
+              onClick: handleDownload, disabled: wordCount === 0,
+              className: "bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg flex items-center space-x-2 transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:grayscale"
+            }, React.createElement('i', { className: "fas fa-file-word" }), React.createElement('span', null, "Download som Word\n"))
+          ),
+
+          // Modals
+          React.createElement(GenericModal, { isVisible: isDispVisible, onClose: () => setDispVisible(false), title: "Disposition / Kladde" },
+            React.createElement('p', { className: "text-xs text-gray-500 mb-4" }, "Her kan du tage stikord. Dette indhold tælles ikke med i din opgave og gemmes kun i din browser."),
+            React.createElement('textarea', {
+              value: dispositionText,
+              onChange: (e) => setDispositionText(e.target.value),
+              onPaste: (e) => { e.preventDefault(); setIllegalAttempts(p => p + 1); alert("Indsætning ikke tilladt i kladde."); },
+              className: "w-full h-96 p-4 border dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-900 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none",
+              placeholder: "Dine stikord her..."
+            })
+          ),
+          React.createElement(GenericModal, { isVisible: isAboutVisible, onClose: () => setAboutVisible(false), title: "Om Værktøjet" },
+            React.createElement('div', { className: "space-y-6 text-gray-700 dark:text-gray-300" },
+              React.createElement('div', { className: "flex items-start space-x-4" },
+                React.createElement('i', { className: "fas fa-save text-blue-500 mt-1" }),
+                React.createElement('div', null,
+                  React.createElement('h4', { className: "font-bold text-gray-900 dark:text-white" }, "Automatisk Lagring"),
+                  React.createElement('p', { className: "text-sm" }, "Dit arbejde gemmes automatisk i din browsers lokale hukommelse hvert 5. sekund. Du mister ikke noget ved at genindlæse siden.")
+                )
+              ),
+              React.createElement('div', { className: "flex items-start space-x-4" },
+                React.createElement('i', { className: "fas fa-shield-alt text-red-500 mt-1" }),
+                React.createElement('div', null,
+                  React.createElement('h4', { className: "font-bold text-gray-900 dark:text-white" }, "Snyde-beskyttelse"),
+                  React.createElement('p', { className: "text-sm" }, "Det er ikke muligt at indsætte tekst (Copy-Paste) eller trække filer ind. Hvis du forsøger at snyde, registreres det som et forsøg i dokumentets skjulte metadata.")
+                )
+              ),
+              React.createElement('div', { className: "flex items-start space-x-4" },
+                React.createElement('i', { className: "fas fa-tachometer-alt text-orange-500 mt-1" }),
+                React.createElement('div', null,
+                  React.createElement('h4', { className: "font-bold text-gray-900 dark:text-white" }, "Hastighedsovervågning"),
+                  React.createElement('p', { className: "text-sm" }, "Hvis du skriver unaturligt hurtigt (f.eks. ved brug af AI-værktøjer eller scripts), vil skrivefeltet låse i 30 sekunder.")
+                )
+              ),
+              React.createElement('div', { className: "flex items-start space-x-4" },
+                React.createElement('i', { className: "fas fa-clock text-green-500 mt-1" }),
+                React.createElement('div', null,
+                  React.createElement('h4', { className: "font-bold text-gray-900 dark:text-white" }, "Sessionstid"),
+                  React.createElement('p', { className: "text-sm" }, "Uret i toppen viser, hvor længe du har arbejdet i denne session.")
+                )
+              )
+            )
+          )
+        );
+      };
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(React.createElement(App));
+    </script>
+  </body>
+</html>
