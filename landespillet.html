@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Macro Trumps - Multiplayer Final</title>
-    <!-- PeerJS til P2P Star-Topology -->
+    <title>Macro Trumps - Multiplayer</title>
+    <!-- PeerJS bibliotek -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
@@ -17,7 +17,7 @@
         }
 
         body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             background-color: #0f0f1a;
             margin: 0;
             display: flex;
@@ -28,7 +28,7 @@
             overflow-x: hidden;
         }
 
-        /* Lobby & Setup */
+        /* Lobby UI */
         #setup-container {
             width: 90%;
             max-width: 450px;
@@ -77,7 +77,7 @@
             font-size: 14px;
         }
 
-        /* Game UI */
+        /* Spil UI */
         #game-board {
             display: none;
             width: 100%;
@@ -124,7 +124,7 @@
         .card-header h2 { margin: 10px 0 0 0; font-size: 24px; color: var(--primary); }
 
         .stat-list {
-            max-height: 40vh;
+            max-height: 42vh;
             overflow-y: auto;
             margin: 0; padding: 0;
             list-style: none;
@@ -156,7 +156,7 @@
             font-size: 13px;
         }
 
-        /* Resultat Overlay */
+        /* Overlay */
         #overlay {
             position: fixed;
             top:0; left:0; right:0; bottom:0;
@@ -177,26 +177,22 @@
             border-radius: 15px;
             font-weight: bold;
             margin-bottom: 15px;
-            animation: pulse 1s infinite;
         }
-
-        @keyframes pulse { 0% {transform: scale(1);} 50% {transform: scale(1.1);} 100% {transform: scale(1);} }
     </style>
 </head>
 <body>
 
     <div class="status-bar" id="game-status">MACRO TRUMPS</div>
 
-    <!-- Setup/Lobby -->
     <div id="setup-container">
         <h1>Macro Trumps</h1>
         <div id="lobby-view">
             <select id="game-year">
-                <option value="2024">Spil med 2024 data</option>
-                <option value="2023">Spil med 2023 data</option>
-                <option value="2022">Spil med 2022 data</option>
-                <option value="2021">Spil med 2021 data</option>
-                <option value="2020">Spil med 2020 data</option>
+                <option value="2024">Data-år: 2024</option>
+                <option value="2023">Data-år: 2023</option>
+                <option value="2022">Data-år: 2022</option>
+                <option value="2021">Data-år: 2021</option>
+                <option value="2020">Data-år: 2020</option>
             </select>
             
             <button class="btn" id="btn-host">Opret Rum (Vært)</button>
@@ -208,15 +204,15 @@
 
             <hr style="border:0; border-top:1px solid #0f3460; margin:20px 0;">
 
-            <input type="text" id="join-id" placeholder="Indtast Værtens ID">
+            <input type="text" id="join-name" placeholder="Dit navn">
+            <input type="text" id="join-id" placeholder="Værtens ID">
             <button class="btn btn-accent" id="btn-join">Deltag i Spil</button>
         </div>
     </div>
 
-    <!-- Spil-Interface -->
     <div id="game-board">
         <div class="info-panel">
-            <div>Kort: <b id="my-deck-count">0</b></div>
+            <div>Dine kort: <b id="my-deck-count">0</b></div>
             <div>Pulje: <b id="pot-count">0</b></div>
             <div id="turn-display">Venter...</div>
         </div>
@@ -230,21 +226,20 @@
         </div>
     </div>
 
-    <!-- Resultat Overlay -->
     <div id="overlay">
         <div class="war-pot-ui" id="overlay-war" style="display:none">KRIGS-PULJE!</div>
         <h1 id="overlay-title">RESULTAT</h1>
-        <div id="overlay-details" style="margin:20px; font-size:18px; line-height:1.6"></div>
+        <div id="overlay-details" style="margin:20px; font-size:18px;"></div>
         <div id="overlay-winner" style="color:var(--gold); font-size:26px; font-weight:bold"></div>
     </div>
 
     <script>
         // --- KONFIGURATION ---
-        const countryCodes = {
+        const countries = {
             AUS: 'Australien', AUT: 'Østrig', BEL: 'Belgien', CAN: 'Canada', CHE: 'Schweiz', CHL: 'Chile', COL: 'Colombia', CRI: 'Costa Rica', CZE: 'Tjekkiet', DEU: 'Tyskland', DNK: 'Danmark', ESP: 'Spanien', EST: 'Estland', FIN: 'Finland', FRA: 'Frankrig', GBR: 'Storbritannien', GRC: 'Grækenland', HUN: 'Ungarn', IRL: 'Irland', ISL: 'Island', ISR: 'Israel', ITA: 'Italien', JPN: 'Japan', KOR: 'Sydkorea', LTU: 'Litauen', LUX: 'Luxembourg', LVA: 'Letland', MEX: 'Mexico', NLD: 'Nederlandene', NOR: 'Norge', NZL: 'New Zealand', POL: 'Polen', PRT: 'Portugal', SVK: 'Slovakiet', SVN: 'Slovenien', SWE: 'Sverige', TUR: 'Tyrkiet', USA: 'USA'
         };
 
-        const indicators = {
+        const indicatorMeta = {
             'GDPV_ANNPCT': { name: 'Økonomisk vækst', lowWins: false },
             'CPI_YTYPCT': { name: 'Samlet inflation', lowWins: true },
             'PCORE_YTYPCT': { name: 'Kerneinflation', lowWins: true },
@@ -265,32 +260,30 @@
 
         const iso3to2 = { AUS:'au', AUT:'at', BEL:'be', CAN:'ca', CHE:'ch', CHL:'cl', COL:'co', CRI:'cr', CZE:'cz', DEU:'de', DNK:'dk', ESP:'es', EST:'ee', FIN:'fi', FRA:'fr', GBR:'gb', GRC:'gr', HUN:'hu', IRL:'ie', ISL:'is', ISR:'il', ITA:'it', JPN:'jp', KOR:'kr', LTU:'lt', LUX:'lu', LVA:'lv', MEX:'mx', NLD:'nl', NOR:'no', NZL:'nz', POL:'pl', PRT:'pt', SVK:'sk', SVN:'si', SWE:'se', TUR:'tr', USA:'us' };
 
-        // --- GLOBAL STATE ---
+        // --- TILSTAND ---
         let peer, connections = {}; 
         let myId, hostId;
-        let myDeck = [], hostPot = []; 
+        let myDeck = [], hostPotSize = 0, currentPotCards = [];
         let isHost = false, selectedYear = "2024";
         let players = []; 
         let turnIdx = 0;
-        let roundData = {};
+        let roundResponses = {};
 
-        // --- FALLBACK LOGIK ---
-        function getStatValue(card, key, targetYear) {
+        // --- HJÆLPEFUNKTIONER ---
+        function getStat(card, key, targetYear) {
             let year = parseInt(targetYear);
             while (year >= 2018) {
                 const val = card.dataMap[key][year.toString()];
-                if (val !== null && val !== undefined) {
-                    return { value: val, year: year };
-                }
+                if (val !== null && val !== undefined) return { value: val, year: year };
                 year--;
             }
             return { value: 0, year: 'N/A' };
         }
 
-        // --- MULTIPLAYER SETUP ---
+        // --- NETVÆRK ---
         document.getElementById('btn-host').onclick = startHost;
         document.getElementById('btn-join').onclick = startJoin;
-        document.getElementById('btn-start').onclick = hostBeginGame;
+        document.getElementById('btn-start').onclick = hostStartGame;
 
         function startHost() {
             isHost = true;
@@ -300,7 +293,7 @@
                 myId = id;
                 document.getElementById('host-info').style.display = 'block';
                 document.getElementById('peer-id-display').innerText = id;
-                players.push({id: id, name: "Vært", active: true});
+                players.push({id: id, name: "Vært (Dig)", active: true});
                 renderLobby();
             });
             peer.on('connection', conn => {
@@ -310,34 +303,39 @@
         }
 
         function startJoin() {
-            hostId = document.getElementById('join-id').value;
-            if(!hostId) return;
+            const hId = document.getElementById('join-id').value;
+            const uName = document.getElementById('join-name').value || "Spiller";
+            if(!hId) return;
             peer = new Peer();
             peer.on('open', id => {
                 myId = id;
-                const conn = peer.connect(hostId);
-                connections[hostId] = conn;
-                conn.on('data', data => handleData(data, hostId));
-                document.getElementById('lobby-view').innerHTML = "<h3>Forbundet! Venter på start...</h3>";
+                const conn = peer.connect(hId);
+                connections[hId] = conn;
+                conn.on('open', () => {
+                    conn.send({type: 'JOIN', name: uName});
+                });
+                conn.on('data', data => handleData(data, hId));
+                document.getElementById('lobby-view').innerHTML = "<h3>Forbundet som " + uName + "! Venter på start...</h3>";
             });
         }
 
-        // --- KOMMUNIKATION ---
         function handleData(data, senderId) {
-            if (isHost) {
-                if (data.type === 'JOIN') {
-                    players.push({id: senderId, name: data.name, active: true});
-                    broadcast({type: 'PLAYERS', players: players});
-                    renderLobby();
-                }
-                if (data.type === 'MOVE') {
-                    roundData[senderId] = { value: data.value, card: data.card, yearUsed: data.yearUsed };
-                    checkRoundEnd(data.cat);
+            if (isHost && data.type === 'JOIN') {
+                players.push({id: senderId, name: data.name, active: true});
+                broadcast({type: 'LOBBY_UPDATE', players: players});
+                renderLobby();
+            }
+
+            if (isHost && data.type === 'MOVE') {
+                roundResponses[senderId] = { value: data.value, year: data.year, card: data.card };
+                const activePlayers = players.filter(p => p.active);
+                if (Object.keys(roundResponses).length === activePlayers.length) {
+                    processHostRound(data.cat);
                 }
             }
 
             switch(data.type) {
-                case 'PLAYERS': players = data.players; break;
+                case 'LOBBY_UPDATE': players = data.players; break;
                 case 'START':
                     myDeck = data.decks[players.findIndex(p => p.id === myId)];
                     selectedYear = data.year;
@@ -345,16 +343,15 @@
                     players = data.players;
                     initBoard();
                     break;
-                case 'SYNC_ROUND':
-                    showOverlay("VALG FORETAGET", indicators[data.cat].name);
-                    if (!isHost) {
-                        const myCard = myDeck[0];
-                        const stat = getStatValue(myCard, data.cat, selectedYear);
-                        sendToHost({type: 'MOVE', cat: data.cat, value: stat.value, yearUsed: stat.year, card: myCard});
-                    }
+                case 'ROUND_START':
+                    showOverlay("KATEGORI VALGT", indicatorMeta[data.cat].name);
+                    setTimeout(() => {
+                        const stat = getStat(myDeck[0], data.cat, selectedYear);
+                        sendToHost({type: 'MOVE', cat: data.cat, value: stat.value, year: stat.year, card: myDeck[0]});
+                    }, 1500);
                     break;
                 case 'RESULT':
-                    processResult(data);
+                    resolveResult(data);
                     break;
             }
         }
@@ -368,124 +365,57 @@
             else connections[hostId].send(data);
         }
 
-        // --- SPIL LOGIK ---
-        async function hostBeginGame() {
-            const codes = Object.keys(countryCodes).sort(() => Math.random() - 0.5);
+        // --- HOST LOGIK ---
+        async function hostStartGame() {
+            const codes = Object.keys(countries).sort(() => Math.random() - 0.5);
             const decks = players.map(() => []);
-            
             for(let i=0; i < codes.length; i++) {
-                const res = await fetch(`./data/${codes[i]}.JSON`);
+                const res = await fetch(`./data/${codes[i]}.json`);
                 const json = await res.json();
                 json.code = codes[i];
                 decks[i % players.length].push(json);
             }
-
-            broadcast({
-                type: 'START',
-                decks: decks,
-                year: selectedYear,
-                players: players,
-                turnIdx: 0
-            });
-            handleData({type: 'START', decks: decks, year: selectedYear, players: players, turnIdx: 0}, myId);
+            const startMsg = { type: 'START', decks, year: selectedYear, players, turnIdx: 0 };
+            broadcast(startMsg);
+            handleData(startMsg, myId);
         }
 
-        function checkRoundEnd(cat) {
-            const activeCount = players.filter(p => p.active).length;
-            if (Object.keys(roundData).length === activeCount) {
-                const meta = indicators[cat];
-                let bestVal = meta.lowWins ? Infinity : -Infinity;
-                let winners = [];
+        function processHostRound(cat) {
+            const meta = indicatorMeta[cat];
+            let bestVal = meta.lowWins ? Infinity : -Infinity;
+            let winners = [];
 
-                Object.entries(roundData).forEach(([pId, data]) => {
-                    const v = data.value;
-                    if (meta.lowWins) {
-                        if (v < bestVal) { bestVal = v; winners = [pId]; }
-                        else if (v === bestVal) winners.push(pId);
-                    } else {
-                        if (v > bestVal) { bestVal = v; winners = [pId]; }
-                        else if (v === bestVal) winners.push(pId);
-                    }
-                });
-
-                const cardsInPlay = Object.values(roundData).map(d => d.card);
-                if (winners.length === 1) {
-                    hostPot.push(...cardsInPlay);
-                    const winnerId = winners[0];
-                    const winnerIdx = players.findIndex(p => p.id === winnerId);
-                    
-                    const resultMsg = {
-                        type: 'RESULT',
-                        winners: winners,
-                        pot: hostPot,
-                        potSize: 0, // Bliver nulstillet efter overførsel
-                        details: roundData,
-                        catName: meta.name,
-                        newTurn: winnerIdx 
-                    };
-                    broadcast(resultMsg);
-                    processResult(resultMsg);
-                    hostPot = [];
+            Object.entries(roundResponses).forEach(([id, res]) => {
+                const v = res.value;
+                if (meta.lowWins) {
+                    if (v < bestVal) { bestVal = v; winners = [id]; }
+                    else if (v === bestVal) winners.push(id);
                 } else {
-                    // KRIG
-                    hostPot.push(...cardsInPlay);
-                    let nextTurn = (turnIdx + 1) % players.length;
-                    while(!players[nextTurn].active) nextTurn = (nextTurn + 1) % players.length;
-
-                    const resultMsg = {
-                        type: 'RESULT',
-                        winners: winners,
-                        potSize: hostPot.length,
-                        details: roundData,
-                        catName: meta.name,
-                        newTurn: nextTurn 
-                    };
-                    broadcast(resultMsg);
-                    processResult(resultMsg);
+                    if (v > bestVal) { bestVal = v; winners = [id]; }
+                    else if (v === bestVal) winners.push(id);
                 }
-                roundData = {};
+            });
+
+            const cardsInRound = Object.values(roundResponses).map(r => r.card);
+            currentPotCards.push(...cardsInRound);
+            
+            let nextTurn;
+            if (winners.length === 1) {
+                const winCards = [...currentPotCards];
+                currentPotCards = [];
+                nextTurn = players.findIndex(p => p.id === winners[0]);
+                const resMsg = { type: 'RESULT', winners, details: roundResponses, cat, potSize: 0, winCards, nextTurn };
+                broadcast(resMsg); resolveResult(resMsg);
+            } else {
+                nextTurn = (turnIdx + 1) % players.length;
+                while(!players[nextTurn].active) nextTurn = (nextTurn + 1) % players.length;
+                const resMsg = { type: 'RESULT', winners, details: roundResponses, cat, potSize: currentPotCards.length, nextTurn };
+                broadcast(resMsg); resolveResult(resMsg);
             }
+            roundResponses = {};
         }
 
-        function processResult(data) {
-            const isWar = data.winners.length > 1;
-            const details = Object.entries(data.details).map(([id, info]) => {
-                const pName = players.find(p => p.id === id).name;
-                const yearNote = info.yearUsed != selectedYear ? `<span class="fallback-year">(${info.yearUsed} data)</span>` : '';
-                return `${pName}: <b>${info.value.toFixed(2)}</b> ${yearNote}`;
-            }).join('<br>');
-
-            document.getElementById('overlay-war').style.display = isWar ? 'block' : 'none';
-            document.getElementById('overlay-title').innerText = isWar ? "KRIG!" : "RUNDENS VINDER";
-            document.getElementById('overlay-details').innerHTML = details;
-            document.getElementById('overlay-winner').innerText = isWar ? "Uafgjort - Puljen vokser!" : players.find(p => p.id === data.winners[0]).name;
-            document.getElementById('overlay').style.display = 'flex';
-
-            setTimeout(() => {
-                document.getElementById('overlay').style.display = 'none';
-                
-                // Flyt kort
-                const myLastCard = myDeck.shift();
-                if (!isWar && data.winners.includes(myId)) {
-                    myDeck.push(myLastCard, ...data.pot.filter(c => c.code !== myLastCard.code));
-                }
-
-                // Opdater UI
-                turnIdx = data.newTurn;
-                document.getElementById('pot-count').innerText = data.potSize;
-                
-                // Tjek eliminering
-                players.forEach((p, idx) => {
-                    // Simpelt: Hvis man er dig og har 0 kort, er man ude.
-                    // Modstanderes kort-antal kender vi ikke præcis, så vi tjekker kun os selv i UI.
-                    if (p.id === myId && myDeck.length === 0) p.active = false;
-                });
-
-                updateBoard();
-            }, 4000);
-        }
-
-        // --- UI ---
+        // --- SPIL FLOW ---
         function initBoard() {
             document.getElementById('setup-container').style.display = 'none';
             document.getElementById('game-board').style.display = 'flex';
@@ -494,42 +424,59 @@
 
         function updateBoard() {
             if (myDeck.length === 0) {
-                document.getElementById('game-status').innerText = "DU ER UDE AF SPILLET";
+                document.getElementById('game-status').innerText = "UDE AF SPILLET";
                 return;
             }
-
             const card = myDeck[0];
-            document.getElementById('country-name').innerText = countryCodes[card.code];
+            document.getElementById('country-name').innerText = countries[card.code];
             document.getElementById('country-flag').src = `https://flagcdn.com/w160/${iso3to2[card.code]}.png`;
             document.getElementById('my-deck-count').innerText = myDeck.length;
 
-            const activePlayer = players[turnIdx];
-            document.getElementById('turn-display').innerText = "Tur: " + activePlayer.name;
-            const myTurn = activePlayer.id === myId;
+            const activeP = players[turnIdx];
+            document.getElementById('turn-display').innerText = "Tur: " + activeP.name;
+            const isMyTurn = activeP.id === myId;
 
             const list = document.getElementById('stat-list');
             list.innerHTML = '';
-
-            Object.keys(indicators).forEach(key => {
-                const stat = getStatValue(card, key, selectedYear);
+            Object.keys(indicatorMeta).forEach(key => {
+                const stat = getStat(card, key, selectedYear);
                 const li = document.createElement('li');
-                li.className = `stat-item ${(!myTurn) ? 'disabled' : ''}`;
-                li.innerHTML = `
-                    <div class="stat-name">
-                        ${indicators[key].name}
-                        ${stat.year != selectedYear ? `<span class="fallback-year">Brugte ${stat.year} tal</span>` : ''}
-                    </div>
-                    <span class="stat-value">${stat.value.toFixed(2)}</span>
-                `;
-                if(myTurn) {
-                    li.onclick = () => {
-                        const move = {type: 'SYNC_ROUND', cat: key};
-                        broadcast(move);
-                        handleData(move, myId);
-                    };
-                }
+                li.className = `stat-item ${!isMyTurn ? 'disabled' : ''}`;
+                li.innerHTML = `<div>${indicatorMeta[key].name}${stat.year != selectedYear ? `<span class="fallback-year">(${stat.year}-data)</span>` : ''}</div>
+                                <span class="stat-value">${stat.value.toFixed(2)}</span>`;
+                if(isMyTurn) li.onclick = () => {
+                    broadcast({type: 'ROUND_START', cat: key});
+                    handleData({type: 'ROUND_START', cat: key}, myId);
+                };
                 list.appendChild(li);
             });
+        }
+
+        function resolveResult(data) {
+            const isWar = data.winners.length > 1;
+            const detailHtml = Object.entries(data.details).map(([id, res]) => {
+                const p = players.find(x => x.id === id).name;
+                const y = res.year != selectedYear ? `<small>(${res.year})</small>` : '';
+                return `${p}: <b>${res.value.toFixed(2)}</b> ${y}`;
+            }).join('<br>');
+
+            document.getElementById('overlay-war').style.display = isWar ? 'block' : 'none';
+            document.getElementById('overlay-title').innerText = isWar ? "KRIG!" : "RUNDENS VINDER";
+            document.getElementById('overlay-details').innerHTML = detailHtml;
+            document.getElementById('overlay-winner').innerText = isWar ? "Puljen vokser!" : players.find(p => p.id === data.winners[0]).name;
+            document.getElementById('overlay').style.display = 'flex';
+
+            setTimeout(() => {
+                document.getElementById('overlay').style.display = 'none';
+                const myOldCard = myDeck.shift();
+                if (!isWar && data.winners.includes(myId)) {
+                    myDeck.push(myOldCard, ...data.winCards.filter(c => c.code !== myOldCard.code));
+                }
+                turnIdx = data.nextTurn;
+                document.getElementById('pot-count').innerText = data.potSize;
+                if(myDeck.length === 0) players.find(p => p.id === myId).active = false;
+                updateBoard();
+            }, 4000);
         }
 
         function renderLobby() {
@@ -539,17 +486,10 @@
 
         function showOverlay(title, detail) {
             document.getElementById('overlay-title').innerText = title;
-            document.getElementById('overlay-details').innerText = detail;
+            document.getElementById('overlay-details').innerHTML = detail;
             document.getElementById('overlay-winner').innerText = "";
             document.getElementById('overlay').style.display = 'flex';
-            setTimeout(() => { if(document.getElementById('overlay-winner').innerText === "") document.getElementById('overlay').style.display = 'none'; }, 1500);
-        }
-
-        // Joiner sender navn
-        if (!isHost) {
-            setTimeout(() => {
-                if(connections[hostId]) sendToHost({type: 'JOIN', name: "Spiller " + myId.substring(0,3)});
-            }, 1000);
+            setTimeout(() => { if(document.getElementById('overlay-winner').innerText==="") document.getElementById('overlay').style.display='none'; }, 1500);
         }
     </script>
 </body>
