@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Makrodysten! - Multiplayer</title>
-    <!-- PeerJS bibliotek -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
@@ -28,7 +27,6 @@
             overflow: hidden;
         }
 
-        /* Lobby UI */
         #setup-container {
             width: 90%;
             max-width: 450px;
@@ -78,7 +76,6 @@
             font-size: 14px;
         }
 
-        /* Game Board */
         #game-board {
             display: none;
             width: 100%;
@@ -119,7 +116,7 @@
         .card-header img { width: 100px; border-radius: 5px; border: 1px solid #ddd; }
         .card-header h2 { margin: 10px 0 0 0; font-size: 24px; color: var(--primary); }
 
-        .stat-list { max-height: 42vh; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+        .stat-list { max-height: 40vh; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
         .stat-item { display: flex; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid #eee; cursor: pointer; }
         .stat-item:hover { background: #f9f9f9; }
         .stat-item.active { background: #e8f4fd; border-left: 6px solid var(--success); }
@@ -139,11 +136,10 @@
             font-size: 13px;
         }
 
-        /* Overlay System */
         #overlay {
             position: fixed;
             top:0; left:0; right:0; bottom:0;
-            background: rgba(0,0,0,0.85); /* Gennemsigtig baggrund */
+            background: rgba(0,0,0,0.92);
             display: none;
             flex-direction: column;
             justify-content: center;
@@ -217,7 +213,6 @@
         </div>
     </div>
 
-    <!-- Overlay -->
     <div id="overlay">
         <div class="war-pot-ui" id="overlay-war" style="display:none">KRIGS-PULJE!</div>
         <h1 id="overlay-title">TITEL</h1>
@@ -227,7 +222,7 @@
     </div>
 
     <script>
-        // --- KONFIGURATION ---
+        // --- DATA OG KONFIGURATION ---
         const countries = {
             AUS: 'Australien', AUT: 'Østrig', BEL: 'Belgien', CAN: 'Canada', CHE: 'Schweiz', CHL: 'Chile', COL: 'Colombia', CRI: 'Costa Rica', CZE: 'Tjekkiet', DEU: 'Tyskland', DNK: 'Danmark', ESP: 'Spanien', EST: 'Estland', FIN: 'Finland', FRA: 'Frankrig', GBR: 'Storbritannien', GRC: 'Grækenland', HUN: 'Ungarn', IRL: 'Irland', ISL: 'Island', ISR: 'Israel', ITA: 'Italien', JPN: 'Japan', KOR: 'Sydkorea', LTU: 'Litauen', LUX: 'Luxembourg', LVA: 'Letland', MEX: 'Mexico', NLD: 'Nederlandene', NOR: 'Norge', NZL: 'New Zealand', POL: 'Polen', PRT: 'Portugal', SVK: 'Slovakiet', SVN: 'Slovenien', SWE: 'Sverige', TUR: 'Tyrkiet', USA: 'USA'
         };
@@ -255,14 +250,13 @@
 
         // --- GLOBAL TILSTAND ---
         let peer, connections = {}; 
-        let myId, hostId;
+        let myId, hostId = null;
         let myDeck = [], hostMasterDecks = {}, hostPot = []; 
         let isHost = false, selectedYear = "2024";
         let players = []; 
         let turnIdx = 0;
         let currentResultData = null;
 
-        // --- HJÆLPEFUNKTIONER ---
         function getStat(card, key, targetYear) {
             let year = parseInt(targetYear);
             while (year >= 2018) {
@@ -293,25 +287,24 @@
             peer.on('connection', conn => {
                 connections[conn.peer] = conn;
                 conn.on('data', data => handleData(data, conn.peer));
-                conn.on('close', () => { 
-                    const p = players.find(x => x.id === conn.peer);
-                    if(p) p.active = false; 
-                    broadcast({type: 'LOBBY', players}); 
-                });
             });
         }
 
         function initJoin() {
             const hId = document.getElementById('join-id').value;
             const uName = document.getElementById('join-name').value || "Spiller";
-            if(!hId) return;
+            if(!hId) return alert("Indtast Værtens ID");
+            
+            hostId = hId; // Tildel global hostId korrekt
             peer = new Peer();
             peer.on('open', id => {
                 myId = id;
-                const conn = peer.connect(hId);
-                connections[hId] = conn;
-                conn.on('open', () => conn.send({type: 'JOIN', name: uName}));
-                conn.on('data', data => handleData(data, hId));
+                const conn = peer.connect(hostId);
+                connections[hostId] = conn;
+                conn.on('open', () => {
+                    conn.send({type: 'JOIN', name: uName});
+                });
+                conn.on('data', data => handleData(data, hostId));
                 document.getElementById('lobby-view').innerHTML = "<h3>Forbundet! Venter på start...</h3>";
             });
         }
@@ -346,14 +339,21 @@
         }
 
         function broadcast(data) { Object.values(connections).forEach(c => c.send(data)); }
-        function sendToHost(data) { isHost ? handleData(data, myId) : connections[hostId].send(data); }
+        
+        function sendToHost(data) { 
+            if (isHost) {
+                handleData(data, myId);
+            } else if (hostId && connections[hostId]) {
+                connections[hostId].send(data);
+            }
+        }
 
-        // --- HOST LOGIK (MASTER) ---
+        // --- HOST LOGIK (STUERE ALLE BUNKER) ---
         async function hostBegin() {
             const codes = Object.keys(countries).sort(() => Math.random() - 0.5);
             const allData = {};
             for(let code of codes) {
-                const res = await fetch(`./data/${code}.json`); // RETTET til små bogstaver
+                const res = await fetch(`./data/${code}.json`); 
                 const json = await res.json();
                 json.code = code;
                 allData[code] = json;
@@ -387,6 +387,7 @@
                 const stat = getStat(card, cat, selectedYear);
                 roundDetails[p.id] = { value: stat.value, year: stat.year, cardCode: card.code };
 
+                // RETTET SEJRS-LOGIK (lowWins)
                 if (meta.lowWins) {
                     if (stat.value < bestVal) { bestVal = stat.value; winners = [p.id]; }
                     else if (stat.value === bestVal) winners.push(p.id);
@@ -396,7 +397,7 @@
                 }
             });
 
-            // Flyt kort i master-decks hos Værten
+            // Flyt kort fra toppen til puljen
             const roundCards = [];
             players.forEach(p => {
                 if (p.active && hostMasterDecks[p.id].length > 0) {
@@ -415,7 +416,7 @@
                 hostPot = [];
                 nextTurn = players.findIndex(p => p.id === winnerId);
             } else {
-                // KRIG - Turen går videre til næste
+                // Krig - turen går til næste
                 nextTurn = (turnIdx + 1) % players.length;
                 while(!players[nextTurn].active) nextTurn = (nextTurn + 1) % players.length;
             }
@@ -470,15 +471,12 @@
         }
 
         function renderResult(data) {
-            // Ryd overlay
             document.getElementById('overlay-details').innerHTML = "";
-            document.getElementById('overlay-winner').innerText = "";
-            
             const isWar = data.winners.length > 1;
             let html = `<div style="color:var(--gold); margin-bottom:10px; font-weight:bold;">Kategori: ${data.catName}</div>`;
             Object.entries(data.details).forEach(([id, res]) => {
                 const p = players.find(x => x.id === id).name;
-                html += `<div style="margin-bottom:8px; text-align:left; border-bottom: 1px solid #444; padding-bottom:4px;">${p} (${countries[res.cardCode]}): <b>${res.value.toFixed(2)}</b></div>`;
+                html += `<div style="margin-bottom:8px; text-align:left;">${p} (${countries[res.cardCode]}): <b>${res.value.toFixed(2)}</b></div>`;
             });
 
             document.getElementById('overlay-war').style.display = isWar ? 'block' : 'none';
@@ -492,9 +490,9 @@
 
         function nextRound() {
             const res = currentResultData;
-            myDeck.shift(); // Fjern kortet vi lige har spillet
+            myDeck.shift(); // Fjern spillet kort
             if (res.winners.length === 1 && res.winners.includes(myId)) {
-                myDeck.push(...res.winCards); // Vinder modtager alle kort (inkl. eget)
+                myDeck.push(...res.winCards); // Vinder får alle kort
             }
             document.getElementById('overlay').style.display = 'none';
             turnIdx = res.nextTurn;
