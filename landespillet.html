@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Macro Trumps - Multiplayer</title>
+    <title>Makroøkonomisk kortkamp!</title>
     <!-- PeerJS bibliotek -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -25,10 +25,10 @@
             align-items: center;
             min-height: 100vh;
             color: var(--light);
-            overflow-x: hidden;
+            overflow: hidden;
         }
 
-        /* Lobby UI */
+        /* Lobby & Setup */
         #setup-container {
             width: 90%;
             max-width: 450px;
@@ -38,6 +38,7 @@
             padding: 30px;
             border-radius: 20px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            z-index: 10;
         }
 
         .btn {
@@ -90,7 +91,7 @@
         .status-bar {
             background: var(--accent);
             width: 100%;
-            padding: 10px;
+            padding: 12px;
             text-align: center;
             font-weight: bold;
             position: sticky;
@@ -115,29 +116,11 @@
             border-bottom: 2px solid #ddd;
         }
 
-        .card-header img {
-            width: 100px;
-            border-radius: 5px;
-            border: 1px solid #ddd;
-        }
-
+        .card-header img { width: 100px; border-radius: 5px; border: 1px solid #ddd; }
         .card-header h2 { margin: 10px 0 0 0; font-size: 24px; color: var(--primary); }
 
-        .stat-list {
-            max-height: 42vh;
-            overflow-y: auto;
-            margin: 0; padding: 0;
-            list-style: none;
-        }
-
-        .stat-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 12px 20px;
-            border-bottom: 1px solid #eee;
-            cursor: pointer;
-        }
-
+        .stat-list { max-height: 40vh; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+        .stat-item { display: flex; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid #eee; cursor: pointer; }
         .stat-item:hover { background: #f9f9f9; }
         .stat-item.active { background: #e8f4fd; border-left: 6px solid var(--success); }
         .stat-item.disabled { opacity: 0.5; cursor: default; }
@@ -156,11 +139,11 @@
             font-size: 13px;
         }
 
-        /* Overlay */
+        /* Overlay System */
         #overlay {
             position: fixed;
             top:0; left:0; right:0; bottom:0;
-            background: rgba(0,0,0,0.95);
+            background: rgba(0,0,0,0.96);
             display: none;
             flex-direction: column;
             justify-content: center;
@@ -170,13 +153,25 @@
             padding: 20px;
         }
 
+        #overlay-details {
+            margin: 20px;
+            font-size: 18px;
+            background: rgba(255,255,255,0.05);
+            padding: 20px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 400px;
+            color: #ccc;
+        }
+
         .war-pot-ui {
             background: var(--gold);
             color: black;
-            padding: 5px 15px;
-            border-radius: 15px;
+            padding: 8px 20px;
+            border-radius: 20px;
             font-weight: bold;
             margin-bottom: 15px;
+            box-shadow: 0 0 15px var(--gold);
         }
     </style>
 </head>
@@ -188,24 +183,24 @@
         <h1>Macro Trumps</h1>
         <div id="lobby-view">
             <select id="game-year">
-                <option value="2024">Data-år: 2024</option>
-                <option value="2023">Data-år: 2023</option>
-                <option value="2022">Data-år: 2022</option>
-                <option value="2021">Data-år: 2021</option>
-                <option value="2020">Data-år: 2020</option>
+                <option value="2024">Data fra: 2024</option>
+                <option value="2023">Data fra: 2023</option>
+                <option value="2022">Data fra: 2022</option>
+                <option value="2021">Data fra: 2021</option>
+                <option value="2020">Data fra: 2020</option>
             </select>
             
             <button class="btn" id="btn-host">Opret Rum (Vært)</button>
             <div id="host-info" style="display:none">
-                <p>Del dette ID: <b id="peer-id-display" style="color:var(--gold)">---</b></p>
+                <p>ID: <b id="peer-id-display" style="color:var(--gold)">---</b></p>
                 <div id="connected-players" style="margin:15px 0;"></div>
                 <button class="btn btn-accent" id="btn-start" disabled>Start Spillet</button>
             </div>
 
             <hr style="border:0; border-top:1px solid #0f3460; margin:20px 0;">
 
-            <input type="text" id="join-name" placeholder="Dit navn">
-            <input type="text" id="join-id" placeholder="Værtens ID">
+            <input type="text" id="join-name" placeholder="Indtast dit navn">
+            <input type="text" id="join-id" placeholder="Indtast Værtens ID">
             <button class="btn btn-accent" id="btn-join">Deltag i Spil</button>
         </div>
     </div>
@@ -228,9 +223,10 @@
 
     <div id="overlay">
         <div class="war-pot-ui" id="overlay-war" style="display:none">KRIGS-PULJE!</div>
-        <h1 id="overlay-title">RESULTAT</h1>
-        <div id="overlay-details" style="margin:20px; font-size:18px;"></div>
-        <div id="overlay-winner" style="color:var(--gold); font-size:26px; font-weight:bold"></div>
+        <h1 id="overlay-title">TITEL</h1>
+        <div id="overlay-details"></div>
+        <div id="overlay-winner" style="color:var(--gold); font-size:26px; font-weight:bold; margin-bottom: 25px;"></div>
+        <button class="btn btn-accent" id="overlay-continue-btn" style="display:none; width: 220px;">FORTSÆT</button>
     </div>
 
     <script>
@@ -260,16 +256,17 @@
 
         const iso3to2 = { AUS:'au', AUT:'at', BEL:'be', CAN:'ca', CHE:'ch', CHL:'cl', COL:'co', CRI:'cr', CZE:'cz', DEU:'de', DNK:'dk', ESP:'es', EST:'ee', FIN:'fi', FRA:'fr', GBR:'gb', GRC:'gr', HUN:'hu', IRL:'ie', ISL:'is', ISR:'il', ITA:'it', JPN:'jp', KOR:'kr', LTU:'lt', LUX:'lu', LVA:'lv', MEX:'mx', NLD:'nl', NOR:'no', NZL:'nz', POL:'pl', PRT:'pt', SVK:'sk', SVN:'si', SWE:'se', TUR:'tr', USA:'us' };
 
-        // --- TILSTAND ---
+        // --- GLOBAL TILSTAND ---
         let peer, connections = {}; 
         let myId, hostId;
-        let myDeck = [], hostPotSize = 0, currentPotCards = [];
+        let myDeck = [], hostPot = []; 
         let isHost = false, selectedYear = "2024";
         let players = []; 
         let turnIdx = 0;
         let roundResponses = {};
+        let currentResult = null;
 
-        // --- HJÆLPEFUNKTIONER ---
+        // --- FUNKTIONER ---
         function getStat(card, key, targetYear) {
             let year = parseInt(targetYear);
             while (year >= 2018) {
@@ -280,12 +277,13 @@
             return { value: 0, year: 'N/A' };
         }
 
-        // --- NETVÆRK ---
-        document.getElementById('btn-host').onclick = startHost;
-        document.getElementById('btn-join').onclick = startJoin;
-        document.getElementById('btn-start').onclick = hostStartGame;
+        // --- MULTIPLAYER ---
+        document.getElementById('btn-host').onclick = initHost;
+        document.getElementById('btn-join').onclick = initJoin;
+        document.getElementById('btn-start').onclick = hostBegin;
+        document.getElementById('overlay-continue-btn').onclick = nextRound;
 
-        function startHost() {
+        function initHost() {
             isHost = true;
             selectedYear = document.getElementById('game-year').value;
             peer = new Peer();
@@ -302,7 +300,7 @@
             });
         }
 
-        function startJoin() {
+        function initJoin() {
             const hId = document.getElementById('join-id').value;
             const uName = document.getElementById('join-name').value || "Spiller";
             if(!hId) return;
@@ -311,62 +309,53 @@
                 myId = id;
                 const conn = peer.connect(hId);
                 connections[hId] = conn;
-                conn.on('open', () => {
-                    conn.send({type: 'JOIN', name: uName});
-                });
+                conn.on('open', () => conn.send({type: 'JOIN', name: uName}));
                 conn.on('data', data => handleData(data, hId));
-                document.getElementById('lobby-view').innerHTML = "<h3>Forbundet som " + uName + "! Venter på start...</h3>";
+                document.getElementById('lobby-view').innerHTML = "<h3>Forbundet! Venter på start...</h3>";
             });
         }
 
         function handleData(data, senderId) {
             if (isHost && data.type === 'JOIN') {
                 players.push({id: senderId, name: data.name, active: true});
-                broadcast({type: 'LOBBY_UPDATE', players: players});
+                broadcast({type: 'LOBBY', players: players});
                 renderLobby();
             }
 
             if (isHost && data.type === 'MOVE') {
                 roundResponses[senderId] = { value: data.value, year: data.year, card: data.card };
-                const activePlayers = players.filter(p => p.active);
-                if (Object.keys(roundResponses).length === activePlayers.length) {
+                const activeCount = players.filter(p => p.active).length;
+                if (Object.keys(roundResponses).length === activeCount) {
                     processHostRound(data.cat);
                 }
             }
 
             switch(data.type) {
-                case 'LOBBY_UPDATE': players = data.players; break;
+                case 'LOBBY': players = data.players; break;
                 case 'START':
                     myDeck = data.decks[players.findIndex(p => p.id === myId)];
                     selectedYear = data.year;
                     turnIdx = data.turnIdx;
                     players = data.players;
-                    initBoard();
+                    startBoard();
                     break;
                 case 'ROUND_START':
-                    showOverlay("KATEGORI VALGT", indicatorMeta[data.cat].name);
-                    setTimeout(() => {
-                        const stat = getStat(myDeck[0], data.cat, selectedYear);
-                        sendToHost({type: 'MOVE', cat: data.cat, value: stat.value, year: stat.year, card: myDeck[0]});
-                    }, 1500);
+                    showOverlay(indicatorMeta[data.cat].name, "Venter på at alle svarer...", false);
+                    const stat = getStat(myDeck[0], data.cat, selectedYear);
+                    sendToHost({type: 'MOVE', cat: data.cat, value: stat.value, year: stat.year, card: myDeck[0]});
                     break;
                 case 'RESULT':
-                    resolveResult(data);
+                    currentResult = data;
+                    renderResult(data);
                     break;
             }
         }
 
-        function broadcast(data) {
-            Object.values(connections).forEach(c => c.send(data));
-        }
-
-        function sendToHost(data) {
-            if (isHost) handleData(data, myId);
-            else connections[hostId].send(data);
-        }
+        function broadcast(data) { Object.values(connections).forEach(c => c.send(data)); }
+        function sendToHost(data) { isHost ? handleData(data, myId) : connections[hostId].send(data); }
 
         // --- HOST LOGIK ---
-        async function hostStartGame() {
+        async function hostBegin() {
             const codes = Object.keys(countries).sort(() => Math.random() - 0.5);
             const decks = players.map(() => []);
             for(let i=0; i < codes.length; i++) {
@@ -375,9 +364,8 @@
                 json.code = codes[i];
                 decks[i % players.length].push(json);
             }
-            const startMsg = { type: 'START', decks, year: selectedYear, players, turnIdx: 0 };
-            broadcast(startMsg);
-            handleData(startMsg, myId);
+            broadcast({ type: 'START', decks, year: selectedYear, players, turnIdx: 0 });
+            handleData({ type: 'START', decks, year: selectedYear, players, turnIdx: 0 }, myId);
         }
 
         function processHostRound(cat) {
@@ -396,33 +384,32 @@
                 }
             });
 
-            const cardsInRound = Object.values(roundResponses).map(r => r.card);
-            currentPotCards.push(...cardsInRound);
+            const roundCards = Object.values(roundResponses).map(r => r.card);
+            hostPot.push(...roundCards);
             
             let nextTurn;
             if (winners.length === 1) {
-                const winCards = [...currentPotCards];
-                currentPotCards = [];
                 nextTurn = players.findIndex(p => p.id === winners[0]);
-                const resMsg = { type: 'RESULT', winners, details: roundResponses, cat, potSize: 0, winCards, nextTurn };
-                broadcast(resMsg); resolveResult(resMsg);
+                const resMsg = { type: 'RESULT', winners, details: roundResponses, cat, potSize: 0, nextTurn, winCards: [...hostPot] };
+                broadcast(resMsg); handleData(resMsg, myId);
+                hostPot = [];
             } else {
                 nextTurn = (turnIdx + 1) % players.length;
                 while(!players[nextTurn].active) nextTurn = (nextTurn + 1) % players.length;
-                const resMsg = { type: 'RESULT', winners, details: roundResponses, cat, potSize: currentPotCards.length, nextTurn };
-                broadcast(resMsg); resolveResult(resMsg);
+                const resMsg = { type: 'RESULT', winners, details: roundResponses, cat, potSize: hostPot.length, nextTurn, winCards: [] };
+                broadcast(resMsg); handleData(resMsg, myId);
             }
             roundResponses = {};
         }
 
-        // --- SPIL FLOW ---
-        function initBoard() {
+        // --- FLOW ---
+        function startBoard() {
             document.getElementById('setup-container').style.display = 'none';
             document.getElementById('game-board').style.display = 'flex';
-            updateBoard();
+            updateUI();
         }
 
-        function updateBoard() {
+        function updateUI() {
             if (myDeck.length === 0) {
                 document.getElementById('game-status').innerText = "UDE AF SPILLET";
                 return;
@@ -435,14 +422,15 @@
             const activeP = players[turnIdx];
             document.getElementById('turn-display').innerText = "Tur: " + activeP.name;
             const isMyTurn = activeP.id === myId;
+            document.getElementById('game-status').innerText = isMyTurn ? "DIN TUR! Vælg et tal." : "Venter på " + activeP.name;
 
             const list = document.getElementById('stat-list');
             list.innerHTML = '';
             Object.keys(indicatorMeta).forEach(key => {
                 const stat = getStat(card, key, selectedYear);
                 const li = document.createElement('li');
-                li.className = `stat-item ${!isMyTurn ? 'disabled' : ''}`;
-                li.innerHTML = `<div>${indicatorMeta[key].name}${stat.year != selectedYear ? `<span class="fallback-year">(${stat.year}-data)</span>` : ''}</div>
+                li.className = isMyTurn ? 'stat-item' : 'stat-item disabled';
+                li.innerHTML = `<div>${indicatorMeta[key].name}${stat.year != selectedYear ? `<span class="fallback-year">(${stat.year})</span>` : ''}</div>
                                 <span class="stat-value">${stat.value.toFixed(2)}</span>`;
                 if(isMyTurn) li.onclick = () => {
                     broadcast({type: 'ROUND_START', cat: key});
@@ -452,44 +440,54 @@
             });
         }
 
-        function resolveResult(data) {
+        function renderResult(data) {
             const isWar = data.winners.length > 1;
-            const detailHtml = Object.entries(data.details).map(([id, res]) => {
+            let html = "";
+            Object.entries(data.details).forEach(([id, res]) => {
                 const p = players.find(x => x.id === id).name;
-                const y = res.year != selectedYear ? `<small>(${res.year})</small>` : '';
-                return `${p}: <b>${res.value.toFixed(2)}</b> ${y}`;
-            }).join('<br>');
+                const cName = countries[res.card.code];
+                html += `<div style="margin-bottom:8px;">${p} (${cName}): <b>${res.value.toFixed(2)}</b></div>`;
+            });
 
             document.getElementById('overlay-war').style.display = isWar ? 'block' : 'none';
             document.getElementById('overlay-title').innerText = isWar ? "KRIG!" : "RUNDENS VINDER";
-            document.getElementById('overlay-details').innerHTML = detailHtml;
+            document.getElementById('overlay-details').innerHTML = html;
             document.getElementById('overlay-winner').innerText = isWar ? "Puljen vokser!" : players.find(p => p.id === data.winners[0]).name;
-            document.getElementById('overlay').style.display = 'flex';
+            
+            showOverlay(null, null, true);
+        }
 
-            setTimeout(() => {
-                document.getElementById('overlay').style.display = 'none';
-                const myOldCard = myDeck.shift();
-                if (!isWar && data.winners.includes(myId)) {
-                    myDeck.push(myOldCard, ...data.winCards.filter(c => c.code !== myOldCard.code));
-                }
-                turnIdx = data.nextTurn;
-                document.getElementById('pot-count').innerText = data.potSize;
-                if(myDeck.length === 0) players.find(p => p.id === myId).active = false;
-                updateBoard();
-            }, 4000);
+        function nextRound() {
+            if (!currentResult) return;
+            const res = currentResult;
+            const myOldCard = myDeck.shift();
+
+            if (res.winners.length === 1 && res.winners.includes(myId)) {
+                myDeck.push(myOldCard); 
+                const others = res.winCards.filter(c => c.code !== myOldCard.code);
+                myDeck.push(...others);
+            }
+
+            document.getElementById('overlay').style.display = 'none';
+            turnIdx = res.nextTurn;
+            document.getElementById('pot-count').innerText = res.potSize;
+            if(myDeck.length === 0) players.find(p => p.id === myId).active = false;
+            
+            currentResult = null;
+            updateUI();
+        }
+
+        function showOverlay(title, detail, showBtn) {
+            const o = document.getElementById('overlay');
+            if(title) document.getElementById('overlay-title').innerText = title;
+            if(detail) document.getElementById('overlay-details').innerHTML = detail;
+            document.getElementById('overlay-continue-btn').style.display = showBtn ? 'inline-block' : 'none';
+            o.style.display = 'flex';
         }
 
         function renderLobby() {
             document.getElementById('connected-players').innerHTML = players.map(p => `<span class="player-tag">${p.name}</span>`).join('');
             if(isHost && players.length >= 2) document.getElementById('btn-start').disabled = false;
-        }
-
-        function showOverlay(title, detail) {
-            document.getElementById('overlay-title').innerText = title;
-            document.getElementById('overlay-details').innerHTML = detail;
-            document.getElementById('overlay-winner').innerText = "";
-            document.getElementById('overlay').style.display = 'flex';
-            setTimeout(() => { if(document.getElementById('overlay-winner').innerText==="") document.getElementById('overlay').style.display='none'; }, 1500);
         }
     </script>
 </body>
