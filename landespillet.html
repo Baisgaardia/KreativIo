@@ -222,7 +222,7 @@
     </div>
 
     <script>
-        // --- DATA OG KONFIGURATION ---
+        // --- DATA ---
         const countries = {
             AUS: 'Australien', AUT: 'Østrig', BEL: 'Belgien', CAN: 'Canada', CHE: 'Schweiz', CHL: 'Chile', COL: 'Colombia', CRI: 'Costa Rica', CZE: 'Tjekkiet', DEU: 'Tyskland', DNK: 'Danmark', ESP: 'Spanien', EST: 'Estland', FIN: 'Finland', FRA: 'Frankrig', GBR: 'Storbritannien', GRC: 'Grækenland', HUN: 'Ungarn', IRL: 'Irland', ISL: 'Island', ISR: 'Israel', ITA: 'Italien', JPN: 'Japan', KOR: 'Sydkorea', LTU: 'Litauen', LUX: 'Luxembourg', LVA: 'Letland', MEX: 'Mexico', NLD: 'Nederlandene', NOR: 'Norge', NZL: 'New Zealand', POL: 'Polen', PRT: 'Portugal', SVK: 'Slovakiet', SVN: 'Slovenien', SWE: 'Sverige', TUR: 'Tyrkiet', USA: 'USA'
         };
@@ -248,7 +248,7 @@
 
         const iso3to2 = { AUS:'au', AUT:'at', BEL:'be', CAN:'ca', CHE:'ch', CHL:'cl', COL:'co', CRI:'cr', CZE:'cz', DEU:'de', DNK:'dk', ESP:'es', EST:'ee', FIN:'fi', FRA:'fr', GBR:'gb', GRC:'gr', HUN:'hu', IRL:'ie', ISL:'is', ISR:'il', ITA:'it', JPN:'jp', KOR:'kr', LTU:'lt', LUX:'lu', LVA:'lv', MEX:'mx', NLD:'nl', NOR:'no', NZL:'nz', POL:'pl', PRT:'pt', SVK:'sk', SVN:'si', SWE:'se', TUR:'tr', USA:'us' };
 
-        // --- GLOBAL TILSTAND ---
+        // --- GLOBAL STATE ---
         let peer, connections = {}; 
         let myId, hostId = null;
         let myDeck = [], hostMasterDecks = {}, hostPot = []; 
@@ -267,12 +267,13 @@
             return { value: 0, year: 'N/A' };
         }
 
-        // --- NETVÆRK ---
+        // --- EVENTS ---
         document.getElementById('btn-host').onclick = initHost;
         document.getElementById('btn-join').onclick = initJoin;
         document.getElementById('btn-start').onclick = hostBegin;
         document.getElementById('overlay-continue-btn').onclick = nextRound;
 
+        // --- NETVÆRK ---
         function initHost() {
             isHost = true;
             selectedYear = document.getElementById('game-year').value;
@@ -287,25 +288,31 @@
             peer.on('connection', conn => {
                 connections[conn.peer] = conn;
                 conn.on('data', data => handleData(data, conn.peer));
+                conn.on('close', () => { 
+                    const p = players.find(x => x.id === conn.peer);
+                    if(p) p.active = false; 
+                    broadcast({type: 'LOBBY', players}); 
+                });
             });
         }
 
         function initJoin() {
-            const hId = document.getElementById('join-id').value;
+            const hId = document.getElementById('join-id').value.trim();
             const uName = document.getElementById('join-name').value || "Spiller";
             if(!hId) return alert("Indtast Værtens ID");
             
-            hostId = hId; // Tildel global hostId korrekt
+            hostId = hId; 
             peer = new Peer();
             peer.on('open', id => {
                 myId = id;
                 const conn = peer.connect(hostId);
-                connections[hostId] = conn;
                 conn.on('open', () => {
+                    connections[hostId] = conn; 
                     conn.send({type: 'JOIN', name: uName});
+                    document.getElementById('lobby-view').innerHTML = "<h3>Forbundet! Venter på start...</h3>";
                 });
                 conn.on('data', data => handleData(data, hostId));
-                document.getElementById('lobby-view').innerHTML = "<h3>Forbundet! Venter på start...</h3>";
+                conn.on('error', () => alert("Kunne ikke oprette forbindelse."));
             });
         }
 
@@ -345,10 +352,12 @@
                 handleData(data, myId);
             } else if (hostId && connections[hostId]) {
                 connections[hostId].send(data);
+            } else {
+                alert("Forbindelsen til Værten er mistet.");
             }
         }
 
-        // --- HOST LOGIK (STUERE ALLE BUNKER) ---
+        // --- HOST LOGIK (OVERDOMMER) ---
         async function hostBegin() {
             const codes = Object.keys(countries).sort(() => Math.random() - 0.5);
             const allData = {};
@@ -387,7 +396,7 @@
                 const stat = getStat(card, cat, selectedYear);
                 roundDetails[p.id] = { value: stat.value, year: stat.year, cardCode: card.code };
 
-                // RETTET SEJRS-LOGIK (lowWins)
+                // Sejrs-logik
                 if (meta.lowWins) {
                     if (stat.value < bestVal) { bestVal = stat.value; winners = [p.id]; }
                     else if (stat.value === bestVal) winners.push(p.id);
@@ -397,7 +406,7 @@
                 }
             });
 
-            // Flyt kort fra toppen til puljen
+            // Flyt top-kortene til puljen
             const roundCards = [];
             players.forEach(p => {
                 if (p.active && hostMasterDecks[p.id].length > 0) {
@@ -416,7 +425,6 @@
                 hostPot = [];
                 nextTurn = players.findIndex(p => p.id === winnerId);
             } else {
-                // Krig - turen går til næste
                 nextTurn = (turnIdx + 1) % players.length;
                 while(!players[nextTurn].active) nextTurn = (nextTurn + 1) % players.length;
             }
@@ -471,12 +479,11 @@
         }
 
         function renderResult(data) {
-            document.getElementById('overlay-details').innerHTML = "";
             const isWar = data.winners.length > 1;
             let html = `<div style="color:var(--gold); margin-bottom:10px; font-weight:bold;">Kategori: ${data.catName}</div>`;
             Object.entries(data.details).forEach(([id, res]) => {
                 const p = players.find(x => x.id === id).name;
-                html += `<div style="margin-bottom:8px; text-align:left;">${p} (${countries[res.cardCode]}): <b>${res.value.toFixed(2)}</b></div>`;
+                html += `<div style="margin-bottom:8px; text-align:left; border-bottom: 1px solid #444; padding-bottom:4px;">${p} (${countries[res.cardCode]}): <b>${res.value.toFixed(2)}</b></div>`;
             });
 
             document.getElementById('overlay-war').style.display = isWar ? 'block' : 'none';
@@ -490,9 +497,9 @@
 
         function nextRound() {
             const res = currentResultData;
-            myDeck.shift(); // Fjern spillet kort
+            myDeck.shift(); 
             if (res.winners.length === 1 && res.winners.includes(myId)) {
-                myDeck.push(...res.winCards); // Vinder får alle kort
+                myDeck.push(...res.winCards); 
             }
             document.getElementById('overlay').style.display = 'none';
             turnIdx = res.nextTurn;
