@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Macro Trumps - Multiplayer Final</title>
+    <!-- PeerJS til P2P Star-Topology -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --primary: #1a1a2e;
+            --accent: #e94560;
+            --success: #4ecca3;
+            --gold: #f1c40f;
+            --dark-blue: #16213e;
+            --light: #e1e1e1;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: #0f0f1a;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            color: var(--light);
+            overflow-x: hidden;
+        }
+
+        /* Lobby & Setup */
+        #setup-container {
+            width: 90%;
+            max-width: 450px;
+            margin-top: 30px;
+            text-align: center;
+            background: var(--dark-blue);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+        }
+
+        .btn {
+            background: var(--success);
+            color: #1a1a2e;
+            border: none;
+            padding: 15px 20px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin: 10px 0;
+            transition: all 0.2s;
+        }
+
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-accent { background: var(--accent); color: white; }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 2px solid #0f3460;
+            background: #1a1a2e;
+            color: white;
+            box-sizing: border-box;
+        }
+
+        .player-tag {
+            display: inline-block;
+            padding: 5px 12px;
+            margin: 5px;
+            background: var(--accent);
+            border-radius: 15px;
+            font-size: 14px;
+        }
+
+        /* Game UI */
+        #game-board {
+            display: none;
+            width: 100%;
+            max-width: 480px;
+            flex-direction: column;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        .status-bar {
+            background: var(--accent);
+            width: 100%;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .card {
+            background: white;
+            color: #333;
+            width: 100%;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            margin-top: 10px;
+        }
+
+        .card-header {
+            background: #f1f1f1;
+            padding: 15px;
+            text-align: center;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .card-header img {
+            width: 100px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        .card-header h2 { margin: 10px 0 0 0; font-size: 24px; color: var(--primary); }
+
+        .stat-list {
+            max-height: 40vh;
+            overflow-y: auto;
+            margin: 0; padding: 0;
+            list-style: none;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 20px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+
+        .stat-item:hover { background: #f9f9f9; }
+        .stat-item.active { background: #e8f4fd; border-left: 6px solid var(--success); }
+        .stat-item.disabled { opacity: 0.5; cursor: default; }
+
+        .stat-name { font-size: 14px; font-weight: 500; }
+        .stat-value { font-weight: bold; color: var(--accent); }
+        .fallback-year { font-size: 10px; color: #888; display: block; font-weight: normal; }
+
+        .info-panel {
+            display: flex;
+            justify-content: space-between;
+            background: var(--dark-blue);
+            padding: 10px 20px;
+            border-radius: 10px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        /* Resultat Overlay */
+        #overlay {
+            position: fixed;
+            top:0; left:0; right:0; bottom:0;
+            background: rgba(0,0,0,0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .war-pot-ui {
+            background: var(--gold);
+            color: black;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse { 0% {transform: scale(1);} 50% {transform: scale(1.1);} 100% {transform: scale(1);} }
+    </style>
+</head>
+<body>
+
+    <div class="status-bar" id="game-status">MACRO TRUMPS</div>
+
+    <!-- Setup/Lobby -->
+    <div id="setup-container">
+        <h1>Macro Trumps</h1>
+        <div id="lobby-view">
+            <select id="game-year">
+                <option value="2024">Spil med 2024 data</option>
+                <option value="2023">Spil med 2023 data</option>
+                <option value="2022">Spil med 2022 data</option>
+                <option value="2021">Spil med 2021 data</option>
+                <option value="2020">Spil med 2020 data</option>
+            </select>
+            
+            <button class="btn" id="btn-host">Opret Rum (Vært)</button>
+            <div id="host-info" style="display:none">
+                <p>Del dette ID: <b id="peer-id-display" style="color:var(--gold)">---</b></p>
+                <div id="connected-players" style="margin:15px 0;"></div>
+                <button class="btn btn-accent" id="btn-start" disabled>Start Spillet</button>
+            </div>
+
+            <hr style="border:0; border-top:1px solid #0f3460; margin:20px 0;">
+
+            <input type="text" id="join-id" placeholder="Indtast Værtens ID">
+            <button class="btn btn-accent" id="btn-join">Deltag i Spil</button>
+        </div>
+    </div>
+
+    <!-- Spil-Interface -->
+    <div id="game-board">
+        <div class="info-panel">
+            <div>Kort: <b id="my-deck-count">0</b></div>
+            <div>Pulje: <b id="pot-count">0</b></div>
+            <div id="turn-display">Venter...</div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <img id="country-flag" src="" alt="Flag">
+                <h2 id="country-name">Land</h2>
+            </div>
+            <ul class="stat-list" id="stat-list"></ul>
+        </div>
+    </div>
+
+    <!-- Resultat Overlay -->
+    <div id="overlay">
+        <div class="war-pot-ui" id="overlay-war" style="display:none">KRIGS-PULJE!</div>
+        <h1 id="overlay-title">RESULTAT</h1>
+        <div id="overlay-details" style="margin:20px; font-size:18px; line-height:1.6"></div>
+        <div id="overlay-winner" style="color:var(--gold); font-size:26px; font-weight:bold"></div>
+    </div>
+
+    <script>
+        // --- KONFIGURATION ---
+        const countryCodes = {
+            AUS: 'Australien', AUT: 'Østrig', BEL: 'Belgien', CAN: 'Canada', CHE: 'Schweiz', CHL: 'Chile', COL: 'Colombia', CRI: 'Costa Rica', CZE: 'Tjekkiet', DEU: 'Tyskland', DNK: 'Danmark', ESP: 'Spanien', EST: 'Estland', FIN: 'Finland', FRA: 'Frankrig', GBR: 'Storbritannien', GRC: 'Grækenland', HUN: 'Ungarn', IRL: 'Irland', ISL: 'Island', ISR: 'Israel', ITA: 'Italien', JPN: 'Japan', KOR: 'Sydkorea', LTU: 'Litauen', LUX: 'Luxembourg', LVA: 'Letland', MEX: 'Mexico', NLD: 'Nederlandene', NOR: 'Norge', NZL: 'New Zealand', POL: 'Polen', PRT: 'Portugal', SVK: 'Slovakiet', SVN: 'Slovenien', SWE: 'Sverige', TUR: 'Tyrkiet', USA: 'USA'
+        };
+
+        const indicators = {
+            'GDPV_ANNPCT': { name: 'Økonomisk vækst', lowWins: false },
+            'CPI_YTYPCT': { name: 'Samlet inflation', lowWins: true },
+            'PCORE_YTYPCT': { name: 'Kerneinflation', lowWins: true },
+            'UNR': { name: 'Arbejdsløshedsprocenten', lowWins: true },
+            'XGSV_ANNPCT': { name: 'Eksport', lowWins: false },
+            'MGSV_ANNPCT': { name: 'Import', lowWins: false },
+            'CBGDPR': { name: 'Betalingsbalancen i % af BNP', lowWins: false },
+            'NLGXQ': { name: 'Offentligt underskud i % af BNP', lowWins: true },
+            'GGFLMQ': { name: 'Offentlig gæld i % af BNP', lowWins: true },
+            'IRL': { name: 'Den lange obligationsrente', lowWins: true },
+            'CPV_ANNPCT': { name: 'Privat forbrug', lowWins: false },
+            'CGV_ANNPCT': { name: 'Offentligt forbrug', lowWins: false },
+            'ITV_ANNPCT': { name: 'Offentlige investeringer', lowWins: false },
+            'PDTY': { name: 'Produktivitet (volumenindeks)', lowWins: false },
+            'CPIDR': { name: 'Priskonkurrence, indeks 2021', lowWins: true },
+            'ULCDR': { name: 'Lønomkostninger, indeks 2021', lowWins: true }
+        };
+
+        const iso3to2 = { AUS:'au', AUT:'at', BEL:'be', CAN:'ca', CHE:'ch', CHL:'cl', COL:'co', CRI:'cr', CZE:'cz', DEU:'de', DNK:'dk', ESP:'es', EST:'ee', FIN:'fi', FRA:'fr', GBR:'gb', GRC:'gr', HUN:'hu', IRL:'ie', ISL:'is', ISR:'il', ITA:'it', JPN:'jp', KOR:'kr', LTU:'lt', LUX:'lu', LVA:'lv', MEX:'mx', NLD:'nl', NOR:'no', NZL:'nz', POL:'pl', PRT:'pt', SVK:'sk', SVN:'si', SWE:'se', TUR:'tr', USA:'us' };
+
+        // --- GLOBAL STATE ---
+        let peer, connections = {}; 
+        let myId, hostId;
+        let myDeck = [], hostPot = []; 
+        let isHost = false, selectedYear = "2024";
+        let players = []; 
+        let turnIdx = 0;
+        let roundData = {};
+
+        // --- FALLBACK LOGIK ---
+        function getStatValue(card, key, targetYear) {
+            let year = parseInt(targetYear);
+            while (year >= 2018) {
+                const val = card.dataMap[key][year.toString()];
+                if (val !== null && val !== undefined) {
+                    return { value: val, year: year };
+                }
+                year--;
+            }
+            return { value: 0, year: 'N/A' };
+        }
+
+        // --- MULTIPLAYER SETUP ---
+        document.getElementById('btn-host').onclick = startHost;
+        document.getElementById('btn-join').onclick = startJoin;
+        document.getElementById('btn-start').onclick = hostBeginGame;
+
+        function startHost() {
+            isHost = true;
+            selectedYear = document.getElementById('game-year').value;
+            peer = new Peer();
+            peer.on('open', id => {
+                myId = id;
+                document.getElementById('host-info').style.display = 'block';
+                document.getElementById('peer-id-display').innerText = id;
+                players.push({id: id, name: "Vært", active: true});
+                renderLobby();
+            });
+            peer.on('connection', conn => {
+                connections[conn.peer] = conn;
+                conn.on('data', data => handleData(data, conn.peer));
+            });
+        }
+
+        function startJoin() {
+            hostId = document.getElementById('join-id').value;
+            if(!hostId) return;
+            peer = new Peer();
+            peer.on('open', id => {
+                myId = id;
+                const conn = peer.connect(hostId);
+                connections[hostId] = conn;
+                conn.on('data', data => handleData(data, hostId));
+                document.getElementById('lobby-view').innerHTML = "<h3>Forbundet! Venter på start...</h3>";
+            });
+        }
+
+        // --- KOMMUNIKATION ---
+        function handleData(data, senderId) {
+            if (isHost) {
+                if (data.type === 'JOIN') {
+                    players.push({id: senderId, name: data.name, active: true});
+                    broadcast({type: 'PLAYERS', players: players});
+                    renderLobby();
+                }
+                if (data.type === 'MOVE') {
+                    roundData[senderId] = { value: data.value, card: data.card, yearUsed: data.yearUsed };
+                    checkRoundEnd(data.cat);
+                }
+            }
+
+            switch(data.type) {
+                case 'PLAYERS': players = data.players; break;
+                case 'START':
+                    myDeck = data.decks[players.findIndex(p => p.id === myId)];
+                    selectedYear = data.year;
+                    turnIdx = data.turnIdx;
+                    players = data.players;
+                    initBoard();
+                    break;
+                case 'SYNC_ROUND':
+                    showOverlay("VALG FORETAGET", indicators[data.cat].name);
+                    if (!isHost) {
+                        const myCard = myDeck[0];
+                        const stat = getStatValue(myCard, data.cat, selectedYear);
+                        sendToHost({type: 'MOVE', cat: data.cat, value: stat.value, yearUsed: stat.year, card: myCard});
+                    }
+                    break;
+                case 'RESULT':
+                    processResult(data);
+                    break;
+            }
+        }
+
+        function broadcast(data) {
+            Object.values(connections).forEach(c => c.send(data));
+        }
+
+        function sendToHost(data) {
+            if (isHost) handleData(data, myId);
+            else connections[hostId].send(data);
+        }
+
+        // --- SPIL LOGIK ---
+        async function hostBeginGame() {
+            const codes = Object.keys(countryCodes).sort(() => Math.random() - 0.5);
+            const decks = players.map(() => []);
+            
+            for(let i=0; i < codes.length; i++) {
+                const res = await fetch(`./data/${codes[i]}.JSON`);
+                const json = await res.json();
+                json.code = codes[i];
+                decks[i % players.length].push(json);
+            }
+
+            broadcast({
+                type: 'START',
+                decks: decks,
+                year: selectedYear,
+                players: players,
+                turnIdx: 0
+            });
+            handleData({type: 'START', decks: decks, year: selectedYear, players: players, turnIdx: 0}, myId);
+        }
+
+        function checkRoundEnd(cat) {
+            const activeCount = players.filter(p => p.active).length;
+            if (Object.keys(roundData).length === activeCount) {
+                const meta = indicators[cat];
+                let bestVal = meta.lowWins ? Infinity : -Infinity;
+                let winners = [];
+
+                Object.entries(roundData).forEach(([pId, data]) => {
+                    const v = data.value;
+                    if (meta.lowWins) {
+                        if (v < bestVal) { bestVal = v; winners = [pId]; }
+                        else if (v === bestVal) winners.push(pId);
+                    } else {
+                        if (v > bestVal) { bestVal = v; winners = [pId]; }
+                        else if (v === bestVal) winners.push(pId);
+                    }
+                });
+
+                const cardsInPlay = Object.values(roundData).map(d => d.card);
+                if (winners.length === 1) {
+                    hostPot.push(...cardsInPlay);
+                    const winnerId = winners[0];
+                    const winnerIdx = players.findIndex(p => p.id === winnerId);
+                    
+                    const resultMsg = {
+                        type: 'RESULT',
+                        winners: winners,
+                        pot: hostPot,
+                        potSize: 0, // Bliver nulstillet efter overførsel
+                        details: roundData,
+                        catName: meta.name,
+                        newTurn: winnerIdx 
+                    };
+                    broadcast(resultMsg);
+                    processResult(resultMsg);
+                    hostPot = [];
+                } else {
+                    // KRIG
+                    hostPot.push(...cardsInPlay);
+                    let nextTurn = (turnIdx + 1) % players.length;
+                    while(!players[nextTurn].active) nextTurn = (nextTurn + 1) % players.length;
+
+                    const resultMsg = {
+                        type: 'RESULT',
+                        winners: winners,
+                        potSize: hostPot.length,
+                        details: roundData,
+                        catName: meta.name,
+                        newTurn: nextTurn 
+                    };
+                    broadcast(resultMsg);
+                    processResult(resultMsg);
+                }
+                roundData = {};
+            }
+        }
+
+        function processResult(data) {
+            const isWar = data.winners.length > 1;
+            const details = Object.entries(data.details).map(([id, info]) => {
+                const pName = players.find(p => p.id === id).name;
+                const yearNote = info.yearUsed != selectedYear ? `<span class="fallback-year">(${info.yearUsed} data)</span>` : '';
+                return `${pName}: <b>${info.value.toFixed(2)}</b> ${yearNote}`;
+            }).join('<br>');
+
+            document.getElementById('overlay-war').style.display = isWar ? 'block' : 'none';
+            document.getElementById('overlay-title').innerText = isWar ? "KRIG!" : "RUNDENS VINDER";
+            document.getElementById('overlay-details').innerHTML = details;
+            document.getElementById('overlay-winner').innerText = isWar ? "Uafgjort - Puljen vokser!" : players.find(p => p.id === data.winners[0]).name;
+            document.getElementById('overlay').style.display = 'flex';
+
+            setTimeout(() => {
+                document.getElementById('overlay').style.display = 'none';
+                
+                // Flyt kort
+                const myLastCard = myDeck.shift();
+                if (!isWar && data.winners.includes(myId)) {
+                    myDeck.push(myLastCard, ...data.pot.filter(c => c.code !== myLastCard.code));
+                }
+
+                // Opdater UI
+                turnIdx = data.newTurn;
+                document.getElementById('pot-count').innerText = data.potSize;
+                
+                // Tjek eliminering
+                players.forEach((p, idx) => {
+                    // Simpelt: Hvis man er dig og har 0 kort, er man ude.
+                    // Modstanderes kort-antal kender vi ikke præcis, så vi tjekker kun os selv i UI.
+                    if (p.id === myId && myDeck.length === 0) p.active = false;
+                });
+
+                updateBoard();
+            }, 4000);
+        }
+
+        // --- UI ---
+        function initBoard() {
+            document.getElementById('setup-container').style.display = 'none';
+            document.getElementById('game-board').style.display = 'flex';
+            updateBoard();
+        }
+
+        function updateBoard() {
+            if (myDeck.length === 0) {
+                document.getElementById('game-status').innerText = "DU ER UDE AF SPILLET";
+                return;
+            }
+
+            const card = myDeck[0];
+            document.getElementById('country-name').innerText = countryCodes[card.code];
+            document.getElementById('country-flag').src = `https://flagcdn.com/w160/${iso3to2[card.code]}.png`;
+            document.getElementById('my-deck-count').innerText = myDeck.length;
+
+            const activePlayer = players[turnIdx];
+            document.getElementById('turn-display').innerText = "Tur: " + activePlayer.name;
+            const myTurn = activePlayer.id === myId;
+
+            const list = document.getElementById('stat-list');
+            list.innerHTML = '';
+
+            Object.keys(indicators).forEach(key => {
+                const stat = getStatValue(card, key, selectedYear);
+                const li = document.createElement('li');
+                li.className = `stat-item ${(!myTurn) ? 'disabled' : ''}`;
+                li.innerHTML = `
+                    <div class="stat-name">
+                        ${indicators[key].name}
+                        ${stat.year != selectedYear ? `<span class="fallback-year">Brugte ${stat.year} tal</span>` : ''}
+                    </div>
+                    <span class="stat-value">${stat.value.toFixed(2)}</span>
+                `;
+                if(myTurn) {
+                    li.onclick = () => {
+                        const move = {type: 'SYNC_ROUND', cat: key};
+                        broadcast(move);
+                        handleData(move, myId);
+                    };
+                }
+                list.appendChild(li);
+            });
+        }
+
+        function renderLobby() {
+            document.getElementById('connected-players').innerHTML = players.map(p => `<span class="player-tag">${p.name}</span>`).join('');
+            if(isHost && players.length >= 2) document.getElementById('btn-start').disabled = false;
+        }
+
+        function showOverlay(title, detail) {
+            document.getElementById('overlay-title').innerText = title;
+            document.getElementById('overlay-details').innerText = detail;
+            document.getElementById('overlay-winner').innerText = "";
+            document.getElementById('overlay').style.display = 'flex';
+            setTimeout(() => { if(document.getElementById('overlay-winner').innerText === "") document.getElementById('overlay').style.display = 'none'; }, 1500);
+        }
+
+        // Joiner sender navn
+        if (!isHost) {
+            setTimeout(() => {
+                if(connections[hostId]) sendToHost({type: 'JOIN', name: "Spiller " + myId.substring(0,3)});
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
