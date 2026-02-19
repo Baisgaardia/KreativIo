@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Makroøkonomisk kortkamp!</title>
-    <!-- PeerJS bibliotek -->
+    <title>Makrodysten! - Multiplayer</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
@@ -17,7 +16,7 @@
         }
 
         body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-family: 'Segoe UI', system-ui, sans-serif;
             background-color: #0f0f1a;
             margin: 0;
             display: flex;
@@ -28,7 +27,6 @@
             overflow: hidden;
         }
 
-        /* Lobby & Setup */
         #setup-container {
             width: 90%;
             max-width: 450px;
@@ -38,7 +36,6 @@
             padding: 30px;
             border-radius: 20px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.6);
-            z-index: 10;
         }
 
         .btn {
@@ -78,7 +75,6 @@
             font-size: 14px;
         }
 
-        /* Spil UI */
         #game-board {
             display: none;
             width: 100%;
@@ -139,7 +135,6 @@
             font-size: 13px;
         }
 
-        /* Overlay System */
         #overlay {
             position: fixed;
             top:0; left:0; right:0; bottom:0;
@@ -161,7 +156,6 @@
             border-radius: 15px;
             width: 90%;
             max-width: 400px;
-            color: #ccc;
         }
 
         .war-pot-ui {
@@ -171,43 +165,42 @@
             border-radius: 20px;
             font-weight: bold;
             margin-bottom: 15px;
-            box-shadow: 0 0 15px var(--gold);
         }
     </style>
 </head>
 <body>
 
-    <div class="status-bar" id="game-status">MACRO TRUMPS</div>
+    <div class="status-bar" id="game-status">MAKRODYSTEN!</div>
 
     <div id="setup-container">
-        <h1>Macro Trumps</h1>
+        <h1>Makrodysten!</h1>
         <div id="lobby-view">
             <select id="game-year">
-                <option value="2024">Data fra: 2024</option>
-                <option value="2023">Data fra: 2023</option>
-                <option value="2022">Data fra: 2022</option>
-                <option value="2021">Data fra: 2021</option>
-                <option value="2020">Data fra: 2020</option>
+                <option value="2024">Data-år: 2024</option>
+                <option value="2023">Data-år: 2023</option>
+                <option value="2022">Data-år: 2022</option>
+                <option value="2021">Data-år: 2021</option>
+                <option value="2020">Data-år: 2020</option>
             </select>
             
             <button class="btn" id="btn-host">Opret Rum (Vært)</button>
             <div id="host-info" style="display:none">
-                <p>ID: <b id="peer-id-display" style="color:var(--gold)">---</b></p>
+                <p>Del dette ID: <b id="peer-id-display" style="color:var(--gold)">---</b></p>
                 <div id="connected-players" style="margin:15px 0;"></div>
                 <button class="btn btn-accent" id="btn-start" disabled>Start Spillet</button>
             </div>
 
             <hr style="border:0; border-top:1px solid #0f3460; margin:20px 0;">
 
-            <input type="text" id="join-name" placeholder="Indtast dit navn">
-            <input type="text" id="join-id" placeholder="Indtast Værtens ID">
+            <input type="text" id="join-name" placeholder="Dit navn">
+            <input type="text" id="join-id" placeholder="Værtens ID">
             <button class="btn btn-accent" id="btn-join">Deltag i Spil</button>
         </div>
     </div>
 
     <div id="game-board">
         <div class="info-panel">
-            <div>Dine kort: <b id="my-deck-count">0</b></div>
+            <div>Kort: <b id="my-deck-count">0</b></div>
             <div>Pulje: <b id="pot-count">0</b></div>
             <div id="turn-display">Venter...</div>
         </div>
@@ -230,7 +223,6 @@
     </div>
 
     <script>
-        // --- KONFIGURATION ---
         const countries = {
             AUS: 'Australien', AUT: 'Østrig', BEL: 'Belgien', CAN: 'Canada', CHE: 'Schweiz', CHL: 'Chile', COL: 'Colombia', CRI: 'Costa Rica', CZE: 'Tjekkiet', DEU: 'Tyskland', DNK: 'Danmark', ESP: 'Spanien', EST: 'Estland', FIN: 'Finland', FRA: 'Frankrig', GBR: 'Storbritannien', GRC: 'Grækenland', HUN: 'Ungarn', IRL: 'Irland', ISL: 'Island', ISR: 'Israel', ITA: 'Italien', JPN: 'Japan', KOR: 'Sydkorea', LTU: 'Litauen', LUX: 'Luxembourg', LVA: 'Letland', MEX: 'Mexico', NLD: 'Nederlandene', NOR: 'Norge', NZL: 'New Zealand', POL: 'Polen', PRT: 'Portugal', SVK: 'Slovakiet', SVN: 'Slovenien', SWE: 'Sverige', TUR: 'Tyrkiet', USA: 'USA'
         };
@@ -256,7 +248,6 @@
 
         const iso3to2 = { AUS:'au', AUT:'at', BEL:'be', CAN:'ca', CHE:'ch', CHL:'cl', COL:'co', CRI:'cr', CZE:'cz', DEU:'de', DNK:'dk', ESP:'es', EST:'ee', FIN:'fi', FRA:'fr', GBR:'gb', GRC:'gr', HUN:'hu', IRL:'ie', ISL:'is', ISR:'il', ITA:'it', JPN:'jp', KOR:'kr', LTU:'lt', LUX:'lu', LVA:'lv', MEX:'mx', NLD:'nl', NOR:'no', NZL:'nz', POL:'pl', PRT:'pt', SVK:'sk', SVN:'si', SWE:'se', TUR:'tr', USA:'us' };
 
-        // --- GLOBAL TILSTAND ---
         let peer, connections = {}; 
         let myId, hostId;
         let myDeck = [], hostPot = []; 
@@ -266,7 +257,6 @@
         let roundResponses = {};
         let currentResult = null;
 
-        // --- FUNKTIONER ---
         function getStat(card, key, targetYear) {
             let year = parseInt(targetYear);
             while (year >= 2018) {
@@ -277,7 +267,6 @@
             return { value: 0, year: 'N/A' };
         }
 
-        // --- MULTIPLAYER ---
         document.getElementById('btn-host').onclick = initHost;
         document.getElementById('btn-join').onclick = initJoin;
         document.getElementById('btn-start').onclick = hostBegin;
@@ -291,7 +280,7 @@
                 myId = id;
                 document.getElementById('host-info').style.display = 'block';
                 document.getElementById('peer-id-display').innerText = id;
-                players.push({id: id, name: "Vært (Dig)", active: true});
+                players.push({id: id, name: "Vært", active: true});
                 renderLobby();
             });
             peer.on('connection', conn => {
@@ -317,7 +306,9 @@
 
         function handleData(data, senderId) {
             if (isHost && data.type === 'JOIN') {
-                players.push({id: senderId, name: data.name, active: true});
+                let idx = players.findIndex(p => p.id === senderId);
+                if(idx > -1) players[idx] = {id: senderId, name: data.name, active: true};
+                else players.push({id: senderId, name: data.name, active: true});
                 broadcast({type: 'LOBBY', players: players});
                 renderLobby();
             }
@@ -340,7 +331,7 @@
                     startBoard();
                     break;
                 case 'ROUND_START':
-                    showOverlay(indicatorMeta[data.cat].name, "Venter på at alle svarer...", false);
+                    showOverlay(indicatorMeta[data.cat].name, "Venter på alle svarer...", false);
                     const stat = getStat(myDeck[0], data.cat, selectedYear);
                     sendToHost({type: 'MOVE', cat: data.cat, value: stat.value, year: stat.year, card: myDeck[0]});
                     break;
@@ -354,7 +345,6 @@
         function broadcast(data) { Object.values(connections).forEach(c => c.send(data)); }
         function sendToHost(data) { isHost ? handleData(data, myId) : connections[hostId].send(data); }
 
-        // --- HOST LOGIK ---
         async function hostBegin() {
             const codes = Object.keys(countries).sort(() => Math.random() - 0.5);
             const decks = players.map(() => []);
@@ -384,8 +374,7 @@
                 }
             });
 
-            const roundCards = Object.values(roundResponses).map(r => r.card);
-            hostPot.push(...roundCards);
+            hostPot.push(...Object.values(roundResponses).map(r => r.card));
             
             let nextTurn;
             if (winners.length === 1) {
@@ -402,7 +391,6 @@
             roundResponses = {};
         }
 
-        // --- FLOW ---
         function startBoard() {
             document.getElementById('setup-container').style.display = 'none';
             document.getElementById('game-board').style.display = 'flex';
@@ -415,24 +403,25 @@
                 return;
             }
             const card = myDeck[0];
+            const activeP = players[turnIdx];
+            const isMe = activeP.id === myId;
+            const displayName = isMe ? (isHost ? "Vært (Dig)" : activeP.name + " (Dig)") : activeP.name;
+
             document.getElementById('country-name').innerText = countries[card.code];
             document.getElementById('country-flag').src = `https://flagcdn.com/w160/${iso3to2[card.code]}.png`;
             document.getElementById('my-deck-count').innerText = myDeck.length;
-
-            const activeP = players[turnIdx];
-            document.getElementById('turn-display').innerText = "Tur: " + activeP.name;
-            const isMyTurn = activeP.id === myId;
-            document.getElementById('game-status').innerText = isMyTurn ? "DIN TUR! Vælg et tal." : "Venter på " + activeP.name;
+            document.getElementById('turn-display').innerText = "Tur: " + displayName;
+            document.getElementById('game-status').innerText = isMe ? "DIN TUR! Vælg et tal." : "Venter på " + activeP.name;
 
             const list = document.getElementById('stat-list');
             list.innerHTML = '';
             Object.keys(indicatorMeta).forEach(key => {
                 const stat = getStat(card, key, selectedYear);
                 const li = document.createElement('li');
-                li.className = isMyTurn ? 'stat-item' : 'stat-item disabled';
+                li.className = isMe ? 'stat-item' : 'stat-item disabled';
                 li.innerHTML = `<div>${indicatorMeta[key].name}${stat.year != selectedYear ? `<span class="fallback-year">(${stat.year})</span>` : ''}</div>
                                 <span class="stat-value">${stat.value.toFixed(2)}</span>`;
-                if(isMyTurn) li.onclick = () => {
+                if(isMe) li.onclick = () => {
                     broadcast({type: 'ROUND_START', cat: key});
                     handleData({type: 'ROUND_START', cat: key}, myId);
                 };
@@ -446,15 +435,17 @@
             Object.entries(data.details).forEach(([id, res]) => {
                 const p = players.find(x => x.id === id).name;
                 const cName = countries[res.card.code];
-                html += `<div style="margin-bottom:8px;">${p} (${cName}): <b>${res.value.toFixed(2)}</b></div>`;
+                html += `<div style="margin-bottom:8px; text-align:left;">${p} (${cName}): <b>${res.value.toFixed(2)}</b></div>`;
             });
 
             document.getElementById('overlay-war').style.display = isWar ? 'block' : 'none';
-            document.getElementById('overlay-title').innerText = isWar ? "KRIG!" : "RUNDENS VINDER";
+            document.getElementById('overlay-title').innerText = isWar ? "KRIG!" : "RESULTAT";
             document.getElementById('overlay-details').innerHTML = html;
-            document.getElementById('overlay-winner').innerText = isWar ? "Puljen vokser!" : players.find(p => p.id === data.winners[0]).name;
+            document.getElementById('overlay-winner').innerText = isWar ? "Uafgjort - Puljen vokser!" : "VINDER: " + players.find(p => p.id === data.winners[0]).name;
             
-            showOverlay(null, null, true);
+            const btn = document.getElementById('overlay-continue-btn');
+            btn.style.display = 'inline-block';
+            document.getElementById('overlay').style.display = 'flex';
         }
 
         function nextRound() {
@@ -469,8 +460,10 @@
             }
 
             document.getElementById('overlay').style.display = 'none';
+            document.getElementById('overlay-continue-btn').style.display = 'none';
             turnIdx = res.nextTurn;
             document.getElementById('pot-count').innerText = res.potSize;
+            
             if(myDeck.length === 0) players.find(p => p.id === myId).active = false;
             
             currentResult = null;
@@ -478,11 +471,11 @@
         }
 
         function showOverlay(title, detail, showBtn) {
-            const o = document.getElementById('overlay');
-            if(title) document.getElementById('overlay-title').innerText = title;
-            if(detail) document.getElementById('overlay-details').innerHTML = detail;
+            document.getElementById('overlay-title').innerText = title;
+            document.getElementById('overlay-details').innerHTML = detail;
+            document.getElementById('overlay-winner').innerText = "";
             document.getElementById('overlay-continue-btn').style.display = showBtn ? 'inline-block' : 'none';
-            o.style.display = 'flex';
+            document.getElementById('overlay').style.display = 'flex';
         }
 
         function renderLobby() {
