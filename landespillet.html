@@ -275,16 +275,31 @@
         }
 
         // RETTELSE 2: Trafiklys-logikken bygget på dine OECD grænser
-        function getStatColor(key, val) {
-            if (val === null || val === undefined || isNaN(val)) return 'val-neutral';
-            if (key === 'GDPV_ANNPCT') return (val >= 1 && val <= 2) ? 'val-green' : 'val-red';
-            if (key === 'UNR') return (val >= 4 && val <= 8) ? 'val-green' : 'val-red';
-            if (key === 'CPI_YTYPCT' || key === 'PCORE_YTYPCT') return (val >= 1 && val <= 3) ? 'val-green' : 'val-red';
-            if (key === 'GGFLMQ') return (val <= 60) ? 'val-green' : 'val-red';
-            if (key === 'CBGDPR') return (val >= 0 && val <= 6) ? 'val-green' : 'val-red';
-            if (key === 'NLGXQ') return (val >= -3) ? 'val-green' : 'val-red';
-            return 'val-neutral';
-        }
+        // RETTELSE 2: Absolut/normativ trafiklys-logik baseret på faste IØ-kriterier
+function getStatColor(key, val) {
+    if (val === null || val === undefined || isNaN(val)) return 'val-neutral';
+    
+    // Økonomisk vækst: Skal være over 1,5 for at være grøn
+    if (key === 'GDPV_ANNPCT') return (val > 1.5) ? 'val-green' : 'val-red';
+    
+    // Arbejdsløshed: Fuld beskæftigelse / sundt niveau er under 4,0 %
+    if (key === 'UNR') return (val < 4.0) ? 'val-green' : 'val-red';
+    
+    // Inflation (Samlet & Kerne): > 0,0 og <= 4,0
+    if (key === 'CPI_YTYPCT' || key === 'PCORE_YTYPCT') return (val > 0.0 && val <= 4.0) ? 'val-green' : 'val-red';
+    
+    // Betalingsbalancen i % af BNP: Mellem 0,0 og 6,0 (inklusive)
+    if (key === 'CBGDPR') return (val >= 0.0 && val <= 6.0) ? 'val-green' : 'val-red';
+    
+    // Offentlig gæld i % af BNP: Mindre end 60,0
+    if (key === 'GGFLMQ') return (val < 60.0) ? 'val-green' : 'val-red';
+    
+    // Offentligt underskud i % af BNP: Større end eller lig med -3,0 (EU's konvergenskrav)
+    if (key === 'NLGXQ') return (val >= -3.0) ? 'val-green' : 'val-red';
+    
+    // Fallback for indikatorer uden specifikke farvekrav
+    return 'val-neutral';
+}
 
         // --- EVENTS ---
         document.getElementById('btn-host').onclick = initHost;
