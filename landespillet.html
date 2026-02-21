@@ -318,7 +318,6 @@
                 connections[conn.peer] = conn;
                 conn.on('data', data => handleData(data, conn.peer));
                 
-                // NYT: ROBUSTHED VED DISCONNECTS
                 conn.on('close', () => { 
                     const p = players.find(x => x.id === conn.peer);
                     if(p) {
@@ -327,7 +326,7 @@
                     }
                     delete connections[conn.peer];
                     broadcast({type: 'LOBBY', players}); 
-                    checkIfReadyForNextRound(); // Tjek om spillet nu kan fortsætte
+                    checkIfReadyForNextRound(); 
                 });
             });
         }
@@ -352,13 +351,13 @@
             });
         }
         
-        // NYT: Centraliseret funktion til at tjekke om runden kan fortsætte
         function checkIfReadyForNextRound() {
             const activeCount = players.filter(x => x.active).length;
-            // Kør kun, hvis mindst én person har klikket klar
             if (readyPlayers > 0 && readyPlayers >= activeCount) {
-                readyPlayers = 0; // Nulstil
-                broadcast({type: 'ALLOW_TURN'});
+                readyPlayers = 0;
+                const allowTurnMsg = {type: 'ALLOW_TURN'};
+                broadcast(allowTurnMsg);
+                handleData(allowTurnMsg, myId); 
             }
         }
 
@@ -376,13 +375,15 @@
                 if (data.type === 'READY_NEXT') {
                     const p = players.find(x => x.id === senderId);
                     if (p && p.active) readyPlayers++; 
-                    checkIfReadyForNextRound(); // Brug den nye centraliserede funktion
+                    checkIfReadyForNextRound();
                 }
             }
 
             switch(data.type) {
                 case 'LOBBY': players = data.players; break;
                 case 'START':
+                    // RETTELSE: Sørg for at overlayet forsvinder ved en 'soft reset'
+                    document.getElementById('overlay').style.display = 'none';
                     myDeck = data.myDeck;
                     selectedYear = data.year;
                     turnIdx = data.turnIdx;
@@ -397,7 +398,6 @@
                 case 'ALLOW_TURN':
                     nextRound();
                     break;
-                // NYT: Håndtering af Game Over
                 case 'GAME_OVER':
                     renderGameOver(data);
                     break;
@@ -417,6 +417,16 @@
         }
 
         // --- HOST LOGIK (OVERDOMMER) ---
+        
+        // NYT: Funktion til 'soft reset' af spillet
+        function hostRestart() {
+            readyPlayers = 0;
+            hostPot = [];
+            hostMasterDecks = {};
+            players.forEach(p => p.active = true); // Genaktiver alle spillere
+            hostBegin(); // Start kortuddeling og spil igen
+        }
+        
         async function hostBegin() {
             const codes = Object.keys(countries).sort(() => Math.random() - 0.5);
             const allData = {};
@@ -436,7 +446,7 @@
             players.forEach(p => {
                 const msg = { type: 'START', myDeck: hostMasterDecks[p.id], year: selectedYear, players, turnIdx: 0 };
                 if (p.id === myId) handleData(msg, myId);
-                else connections[p.id].send(msg);
+                else if (connections[p.id]) connections[p.id].send(msg);
             });
         }
 
@@ -478,14 +488,13 @@
                 }
             });
             
-            // NYT: VINDER-TJEK (END-GAME)
             const activePlayers = players.filter(p => p.active);
             if (activePlayers.length <= 1) {
-                const winner = activePlayers.length === 1 ? activePlayers[0] : players.find(p => p.id === winners[0]); // Find en vinder
+                const winner = activePlayers.length === 1 ? activePlayers[0] : players.find(p => p.id === winners[0]);
                 const gameOverMsg = { type: 'GAME_OVER', winnerName: winner.name };
                 broadcast(gameOverMsg);
-                handleData(gameOverMsg, myId); // Håndter for host selv
-                return; // Afslut funktionen for at undgå at sende et normalt resultat
+                handleData(gameOverMsg, myId);
+                return;
             }
 
             let nextTurn;
@@ -531,20 +540,19 @@
         }
 
         function updateUI() {
-            // NYT: SPECTATOR MODE
             if (myDeck.length === 0) {
                 document.getElementById('game-status').innerText = "DU ER UDE - SER MED";
-                document.getElementById('game-board').style.display = 'none'; // Skjul brættet
+                document.getElementById('game-board').style.display = 'none';
                 return;
             }
             
-            // Sørg for at brættet er synligt, hvis spilleren ikke er ude
             document.getElementById('game-board').style.display = 'flex';
 
-            const card = myDeck[0];
-            const activeP = players[turnIdx];
+            const activeP = players.find(p => p.active && players.indexOf(p) === turnIdx);
+            if (!activeP) return; // Sikkerhedstjek
             const isMe = activeP.id === myId;
             const turnName = isMe ? (isHost ? "Vært (Dig)" : activeP.name + " (Dig)") : activeP.name;
+            const card = myDeck[0];
 
             document.getElementById('country-name').innerText = countries[card.code];
             document.getElementById('country-flag').src = `https://flagcdn.com/w160/${iso3to2[card.code]}.png`;
@@ -577,8 +585,9 @@
             const isWar = data.winners.length > 1;
             let html = `<div style="color:var(--gold); margin-bottom:10px; font-weight:bold;">Kategori: ${data.catName}</div>`;
             Object.entries(data.details).forEach(([id, res]) => {
-                const p = players.find(x => x.id === id).name;
-                html += `<div style="margin-bottom:8px; text-align:left; border-bottom: 1px solid #444; padding-bottom:4px;">${p} (${countries[res.cardCode]}): <b class="${getStatColor(data.catCode, res.value)}">${res.value.toFixed(2)}</b></div>`;
+                const player = players.find(x => x.id === id);
+                if (!player) return;
+                html += `<div style="margin-bottom:8px; text-align:left; border-bottom: 1px solid #444; padding-bottom:4px;">${player.name} (${countries[res.cardCode]}): <b class="${getStatColor(data.catCode, res.value)}">${res.value.toFixed(2)}</b></div>`;
             });
 
             document.getElementById('overlay-war').style.display = isWar ? 'block' : 'none';
@@ -587,7 +596,6 @@
             document.getElementById('overlay-winner').innerText = isWar ? "Puljen vokser!" : "VINDER: " + players.find(p => p.id === data.winners[0]).name;
             
             const btn = document.getElementById('overlay-continue-btn');
-            // Logik for at vise knappen er uændret og fungerer nu perfekt for spectator mode
             if (data.myNewDeck.length > 0) {
                 btn.style.display = 'inline-block';
                 btn.innerText = "FORTSÆT";
@@ -599,7 +607,6 @@
             document.getElementById('overlay').style.display = 'flex';
         }
 
-        // NYT: Funktion til at vise Game Over-skærmen
         function renderGameOver(data) {
             document.getElementById('overlay-title').innerText = "SPILLET ER SLUT!";
             document.getElementById('overlay-details').innerHTML = `Tillykke til den samlede vinder!`;
@@ -607,10 +614,18 @@
             document.getElementById('overlay-war').style.display = 'none';
             
             const btn = document.getElementById('overlay-continue-btn');
-            btn.innerText = "SPIL IGEN";
             btn.style.display = 'inline-block';
-            btn.disabled = false;
-            btn.onclick = () => { window.location.reload(); }; // Genstart ved at genindlæse siden
+            
+            // RETTELSE: Soft Reset Logik
+            if (isHost) {
+                btn.innerText = "START NYT SPIL";
+                btn.disabled = false;
+                btn.onclick = hostRestart;
+            } else {
+                btn.innerText = "VENTER PÅ VÆRT...";
+                btn.disabled = true;
+                btn.onclick = null; // Fjern tidligere event listeners
+            }
 
             document.getElementById('overlay').style.display = 'flex';
         }
