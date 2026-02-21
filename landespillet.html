@@ -276,6 +276,7 @@
 
         // RETTELSE 2: Trafiklys-logikken bygget på dine OECD grænser
         // RETTELSE 2: Absolut/normativ trafiklys-logik baseret på faste IØ-kriterier
+// RETTELSE 2: Absolut/normativ trafiklys-logik baseret på faste IØ-kriterier
 function getStatColor(key, val) {
     if (val === null || val === undefined || isNaN(val)) return 'val-neutral';
     
@@ -296,6 +297,15 @@ function getStatColor(key, val) {
     
     // Offentligt underskud i % af BNP: Større end eller lig med -3,0 (EU's konvergenskrav)
     if (key === 'NLGXQ') return (val >= -3.0) ? 'val-green' : 'val-red';
+
+    // Produktivitet: Over 1,00 er grønt, ellers rødt
+    if (key === 'PDTY') return (val > 1.0) ? 'val-green' : 'val-red';
+
+    // Priskonkurrence (Indeks 2021): Under 100 er grønt, ellers rødt
+    if (key === 'CPIDR') return (val < 100) ? 'val-green' : 'val-red';
+
+    // Lønomkostninger (Indeks 2021): Under 100 er grønt, ellers rødt
+    if (key === 'ULCDR') return (val < 100) ? 'val-green' : 'val-red';
     
     // Fallback for indikatorer uden specifikke farvekrav
     return 'val-neutral';
