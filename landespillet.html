@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Makrodysten! - Multiplayer</title>
+    <title>Makrodysten! - Multiplayer (Synced)</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
@@ -256,6 +256,7 @@
         let players = []; 
         let turnIdx = 0;
         let currentResultData = null;
+        let isProcessing = false; // RETTELSE 1: Anti-spam variabel
 
         function getStat(card, key, targetYear) {
             let year = parseInt(targetYear);
@@ -339,6 +340,8 @@
                     startBoard();
                     break;
                 case 'RESULT':
+                    // RETTELSE 3: Overskriv lokal bunke med Værtens master-data
+                    myDeck = data.myNewDeck;
                     currentResultData = data;
                     renderResult(data);
                     break;
@@ -396,7 +399,6 @@
                 const stat = getStat(card, cat, selectedYear);
                 roundDetails[p.id] = { value: stat.value, year: stat.year, cardCode: card.code };
 
-                // Sejrs-logik
                 if (meta.lowWins) {
                     if (stat.value < bestVal) { bestVal = stat.value; winners = [p.id]; }
                     else if (stat.value === bestVal) winners.push(p.id);
@@ -406,7 +408,6 @@
                 }
             });
 
-            // Flyt top-kortene til puljen
             const roundCards = [];
             players.forEach(p => {
                 if (p.active && hostMasterDecks[p.id].length > 0) {
@@ -429,17 +430,25 @@
                 while(!players[nextTurn].active) nextTurn = (nextTurn + 1) % players.length;
             }
 
-            const resultMsg = {
-                type: 'RESULT',
-                winners,
-                details: roundDetails,
-                catName: meta.name,
-                potSize: hostPot.length,
-                winCards: winCardsToSend,
-                nextTurn
-            };
-            broadcast(resultMsg);
-            handleData(resultMsg, myId);
+            // RETTELSE 2: Absolut synkronisering. Send individuel besked til hver spiller med deres specifikke master-deck.
+            players.forEach(p => {
+                const resultMsg = {
+                    type: 'RESULT',
+                    winners,
+                    details: roundDetails,
+                    catName: meta.name,
+                    potSize: hostPot.length,
+                    winCards: winCardsToSend,
+                    nextTurn,
+                    myNewDeck: hostMasterDecks[p.id] // Her er autoriteten
+                };
+
+                if (p.id === myId) {
+                    handleData(resultMsg, myId);
+                } else if (connections[p.id]) {
+                    connections[p.id].send(resultMsg);
+                }
+            });
         }
 
         // --- SPIL FLOW ---
@@ -473,7 +482,15 @@
                 li.className = isMe ? 'stat-item' : 'stat-item disabled';
                 li.innerHTML = `<div>${indicatorMeta[key].name}${stat.year != selectedYear ? `<span class="fallback-year">(${stat.year})</span>` : ''}</div>
                                 <span class="stat-value">${stat.value.toFixed(2)}</span>`;
-                if(isMe) li.onclick = () => sendToHost({type: 'PICK_CATEGORY', cat: key});
+                
+                if(isMe) {
+                    li.onclick = () => {
+                        // RETTELSE 1: Klik-lås (Anti-spam)
+                        if(isProcessing) return;
+                        isProcessing = true;
+                        sendToHost({type: 'PICK_CATEGORY', cat: key});
+                    };
+                }
                 list.appendChild(li);
             });
         }
@@ -497,15 +514,18 @@
 
         function nextRound() {
             const res = currentResultData;
-            myDeck.shift(); 
-            if (res.winners.length === 1 && res.winners.includes(myId)) {
-                myDeck.push(...res.winCards); 
-            }
+            
+            // RETTELSE 4: Fjernet lokal kort-manipulation (myDeck.shift osv.)
+            
             document.getElementById('overlay').style.display = 'none';
             turnIdx = res.nextTurn;
             document.getElementById('pot-count').innerText = res.potSize;
             if(myDeck.length === 0) players.find(p => p.id === myId).active = false;
             currentResultData = null;
+            
+            // RETTELSE 1: Frigiv klik-lås
+            isProcessing = false;
+            
             updateUI();
         }
 
