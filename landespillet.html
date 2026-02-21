@@ -124,7 +124,6 @@
 
         .stat-name { font-size: 14px; font-weight: 500; }
         
-        /* RETTELSE 1: Fjernet rød standardfarve, indsat trafiklys-klasser */
         .stat-value { font-weight: bold; } 
         .val-green { color: #4ecca3; }
         .val-red { color: #e94560; }
@@ -263,59 +262,45 @@
         let turnIdx = 0;
         let currentResultData = null;
         let isProcessing = false;
+        let readyPlayers = 0;
 
         function getStat(card, key, targetYear) {
             let year = parseInt(targetYear);
             while (year >= 2018) {
-                const val = card.dataMap[key][year.toString()];
-                if (val !== null && val !== undefined) return { value: val, year: year };
+                let val = card.dataMap[key][year.toString()];
+                if (val !== null && val !== undefined && val !== '') {
+                    val = parseFloat(String(val).replace(',', '.'));
+                    return { value: val, year: year };
+                }
                 year--;
             }
             return { value: 0, year: 'N/A' };
         }
 
-        // RETTELSE 2: Trafiklys-logikken bygget på dine OECD grænser
-        // RETTELSE 2: Absolut/normativ trafiklys-logik baseret på faste IØ-kriterier
-// RETTELSE 2: Absolut/normativ trafiklys-logik baseret på faste IØ-kriterier
-function getStatColor(key, val) {
-    if (val === null || val === undefined || isNaN(val)) return 'val-neutral';
-    
-    // Økonomisk vækst: Skal være over 1,5 for at være grøn
-    if (key === 'GDPV_ANNPCT') return (val > 1.5) ? 'val-green' : 'val-red';
-    
-    // Arbejdsløshed: Fuld beskæftigelse / sundt niveau er under 4,0 %
-    if (key === 'UNR') return (val < 4.0) ? 'val-green' : 'val-red';
-    
-    // Inflation (Samlet & Kerne): > 0,0 og <= 4,0
-    if (key === 'CPI_YTYPCT' || key === 'PCORE_YTYPCT') return (val > 0.0 && val <= 4.0) ? 'val-green' : 'val-red';
-    
-    // Betalingsbalancen i % af BNP: Mellem 0,0 og 6,0 (inklusive)
-    if (key === 'CBGDPR') return (val >= 0.0 && val <= 6.0) ? 'val-green' : 'val-red';
-    
-    // Offentlig gæld i % af BNP: Mindre end 60,0
-    if (key === 'GGFLMQ') return (val < 60.0) ? 'val-green' : 'val-red';
-    
-    // Offentligt underskud i % af BNP: Større end eller lig med -3,0 (EU's konvergenskrav)
-    if (key === 'NLGXQ') return (val >= -3.0) ? 'val-green' : 'val-red';
-
-    // Produktivitet: Over 1,00 er grønt, ellers rødt
-    if (key === 'PDTY') return (val > 1.0) ? 'val-green' : 'val-red';
-
-    // Priskonkurrence (Indeks 2021): Under 100 er grønt, ellers rødt
-    if (key === 'CPIDR') return (val < 100) ? 'val-green' : 'val-red';
-
-    // Lønomkostninger (Indeks 2021): Under 100 er grønt, ellers rødt
-    if (key === 'ULCDR') return (val < 100) ? 'val-green' : 'val-red';
-    
-    // Fallback for indikatorer uden specifikke farvekrav
-    return 'val-neutral';
-}
+        function getStatColor(key, val) {
+            if (val === null || val === undefined || isNaN(val)) return 'val-neutral';
+            if (key === 'GDPV_ANNPCT') return (val > 1.5) ? 'val-green' : 'val-red';
+            if (key === 'UNR') return (val < 4.0) ? 'val-green' : 'val-red';
+            if (key === 'CPI_YTYPCT' || key === 'PCORE_YTYPCT') return (val > 0.0 && val <= 4.0) ? 'val-green' : 'val-red';
+            if (key === 'CBGDPR') return (val >= 0.0 && val <= 6.0) ? 'val-green' : 'val-red';
+            if (key === 'GGFLMQ') return (val < 60.0) ? 'val-green' : 'val-red';
+            if (key === 'NLGXQ') return (val >= -3.0) ? 'val-green' : 'val-red';
+            if (key === 'PDTY') return (val > 1.0) ? 'val-green' : 'val-red';
+            if (key === 'CPIDR') return (val < 100) ? 'val-green' : 'val-red';
+            if (key === 'ULCDR') return (val < 100) ? 'val-green' : 'val-red';
+            return 'val-neutral';
+        }
 
         // --- EVENTS ---
         document.getElementById('btn-host').onclick = initHost;
         document.getElementById('btn-join').onclick = initJoin;
         document.getElementById('btn-start').onclick = hostBegin;
-        document.getElementById('overlay-continue-btn').onclick = nextRound;
+        
+        document.getElementById('overlay-continue-btn').onclick = () => {
+            document.getElementById('overlay-continue-btn').innerText = "VENTER...";
+            document.getElementById('overlay-continue-btn').disabled = true;
+            sendToHost({type: 'READY_NEXT'});
+        };
 
         // --- NETVÆRK ---
         function initHost() {
@@ -332,10 +317,17 @@ function getStatColor(key, val) {
             peer.on('connection', conn => {
                 connections[conn.peer] = conn;
                 conn.on('data', data => handleData(data, conn.peer));
+                
+                // NYT: ROBUSTHED VED DISCONNECTS
                 conn.on('close', () => { 
                     const p = players.find(x => x.id === conn.peer);
-                    if(p) p.active = false; 
+                    if(p) {
+                        p.active = false;
+                        console.log(`${p.name} disconnected.`);
+                    }
+                    delete connections[conn.peer];
                     broadcast({type: 'LOBBY', players}); 
+                    checkIfReadyForNextRound(); // Tjek om spillet nu kan fortsætte
                 });
             });
         }
@@ -359,6 +351,16 @@ function getStatColor(key, val) {
                 conn.on('error', () => alert("Kunne ikke oprette forbindelse."));
             });
         }
+        
+        // NYT: Centraliseret funktion til at tjekke om runden kan fortsætte
+        function checkIfReadyForNextRound() {
+            const activeCount = players.filter(x => x.active).length;
+            // Kør kun, hvis mindst én person har klikket klar
+            if (readyPlayers > 0 && readyPlayers >= activeCount) {
+                readyPlayers = 0; // Nulstil
+                broadcast({type: 'ALLOW_TURN'});
+            }
+        }
 
         function handleData(data, senderId) {
             if (isHost) {
@@ -370,6 +372,11 @@ function getStatColor(key, val) {
                 }
                 if (data.type === 'PICK_CATEGORY') {
                     processHostRound(data.cat);
+                }
+                if (data.type === 'READY_NEXT') {
+                    const p = players.find(x => x.id === senderId);
+                    if (p && p.active) readyPlayers++; 
+                    checkIfReadyForNextRound(); // Brug den nye centraliserede funktion
                 }
             }
 
@@ -386,6 +393,13 @@ function getStatColor(key, val) {
                     myDeck = data.myNewDeck;
                     currentResultData = data;
                     renderResult(data);
+                    break;
+                case 'ALLOW_TURN':
+                    nextRound();
+                    break;
+                // NYT: Håndtering af Game Over
+                case 'GAME_OVER':
+                    renderGameOver(data);
                     break;
             }
         }
@@ -458,12 +472,21 @@ function getStatColor(key, val) {
             });
             hostPot.push(...roundCards);
 
-            // RETTELSE 4: Eliminering i multiplayer (Markér spillere ude, hvis de mangler kort)
             players.forEach(p => {
                 if (p.active && hostMasterDecks[p.id].length === 0) {
                     p.active = false;
                 }
             });
+            
+            // NYT: VINDER-TJEK (END-GAME)
+            const activePlayers = players.filter(p => p.active);
+            if (activePlayers.length <= 1) {
+                const winner = activePlayers.length === 1 ? activePlayers[0] : players.find(p => p.id === winners[0]); // Find en vinder
+                const gameOverMsg = { type: 'GAME_OVER', winnerName: winner.name };
+                broadcast(gameOverMsg);
+                handleData(gameOverMsg, myId); // Håndter for host selv
+                return; // Afslut funktionen for at undgå at sende et normalt resultat
+            }
 
             let nextTurn;
             let winCardsToSend = [];
@@ -485,7 +508,7 @@ function getStatColor(key, val) {
                     winners,
                     details: roundDetails,
                     catName: meta.name,
-                    catCode: cat, // Vigtigt for at farvekoden virker i overlay
+                    catCode: cat,
                     potSize: hostPot.length,
                     winCards: winCardsToSend,
                     nextTurn,
@@ -508,10 +531,16 @@ function getStatColor(key, val) {
         }
 
         function updateUI() {
+            // NYT: SPECTATOR MODE
             if (myDeck.length === 0) {
-                document.getElementById('game-status').innerText = "UDE AF SPILLET";
+                document.getElementById('game-status').innerText = "DU ER UDE - SER MED";
+                document.getElementById('game-board').style.display = 'none'; // Skjul brættet
                 return;
             }
+            
+            // Sørg for at brættet er synligt, hvis spilleren ikke er ude
+            document.getElementById('game-board').style.display = 'flex';
+
             const card = myDeck[0];
             const activeP = players[turnIdx];
             const isMe = activeP.id === myId;
@@ -530,7 +559,6 @@ function getStatColor(key, val) {
                 const li = document.createElement('li');
                 li.className = isMe ? 'stat-item' : 'stat-item disabled';
                 
-                // RETTELSE 3: Trafiklys anvendt på kortets layout
                 li.innerHTML = `<div>${indicatorMeta[key].name}${stat.year != selectedYear ? `<span class="fallback-year">(${stat.year})</span>` : ''}</div>
                                 <span class="stat-value ${getStatColor(key, stat.value)}">${stat.value.toFixed(2)}</span>`;
                 
@@ -550,7 +578,6 @@ function getStatColor(key, val) {
             let html = `<div style="color:var(--gold); margin-bottom:10px; font-weight:bold;">Kategori: ${data.catName}</div>`;
             Object.entries(data.details).forEach(([id, res]) => {
                 const p = players.find(x => x.id === id).name;
-                // RETTELSE 3: Trafiklys anvendt i overlay
                 html += `<div style="margin-bottom:8px; text-align:left; border-bottom: 1px solid #444; padding-bottom:4px;">${p} (${countries[res.cardCode]}): <b class="${getStatColor(data.catCode, res.value)}">${res.value.toFixed(2)}</b></div>`;
             });
 
@@ -559,22 +586,51 @@ function getStatColor(key, val) {
             document.getElementById('overlay-details').innerHTML = html;
             document.getElementById('overlay-winner').innerText = isWar ? "Puljen vokser!" : "VINDER: " + players.find(p => p.id === data.winners[0]).name;
             
-            document.getElementById('overlay-continue-btn').style.display = 'inline-block';
+            const btn = document.getElementById('overlay-continue-btn');
+            // Logik for at vise knappen er uændret og fungerer nu perfekt for spectator mode
+            if (data.myNewDeck.length > 0) {
+                btn.style.display = 'inline-block';
+                btn.innerText = "FORTSÆT";
+                btn.disabled = false;
+            } else {
+                btn.style.display = 'none';
+            }
+            
+            document.getElementById('overlay').style.display = 'flex';
+        }
+
+        // NYT: Funktion til at vise Game Over-skærmen
+        function renderGameOver(data) {
+            document.getElementById('overlay-title').innerText = "SPILLET ER SLUT!";
+            document.getElementById('overlay-details').innerHTML = `Tillykke til den samlede vinder!`;
+            document.getElementById('overlay-winner').innerText = "VINDER: " + data.winnerName;
+            document.getElementById('overlay-war').style.display = 'none';
+            
+            const btn = document.getElementById('overlay-continue-btn');
+            btn.innerText = "SPIL IGEN";
+            btn.style.display = 'inline-block';
+            btn.disabled = false;
+            btn.onclick = () => { window.location.reload(); }; // Genstart ved at genindlæse siden
+
             document.getElementById('overlay').style.display = 'flex';
         }
 
         function nextRound() {
             const res = currentResultData;
             document.getElementById('overlay').style.display = 'none';
-            turnIdx = res.nextTurn;
-            document.getElementById('pot-count').innerText = res.potSize;
             
-            // Tjek lokal status i UI opdateringen
-            if(myDeck.length === 0) players.find(p => p.id === myId).active = false;
+            if (res) {
+                turnIdx = res.nextTurn;
+                document.getElementById('pot-count').innerText = res.potSize;
+                currentResultData = null;
+            }
             
-            currentResultData = null;
+            if(myDeck.length === 0) {
+                const me = players.find(p => p.id === myId);
+                if (me) me.active = false;
+            }
+            
             isProcessing = false;
-            
             updateUI();
         }
 
