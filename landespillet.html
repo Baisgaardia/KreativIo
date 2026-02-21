@@ -123,7 +123,13 @@
         .stat-item.disabled { opacity: 0.5; cursor: default; }
 
         .stat-name { font-size: 14px; font-weight: 500; }
-        .stat-value { font-weight: bold; color: var(--accent); }
+        
+        /* RETTELSE 1: Fjernet rød standardfarve, indsat trafiklys-klasser */
+        .stat-value { font-weight: bold; } 
+        .val-green { color: #4ecca3; }
+        .val-red { color: #e94560; }
+        .val-neutral { color: #aaaaaa; }
+
         .fallback-year { font-size: 10px; color: #888; display: block; font-weight: normal; }
 
         .info-panel {
@@ -256,7 +262,7 @@
         let players = []; 
         let turnIdx = 0;
         let currentResultData = null;
-        let isProcessing = false; // RETTELSE 1: Anti-spam variabel
+        let isProcessing = false;
 
         function getStat(card, key, targetYear) {
             let year = parseInt(targetYear);
@@ -266,6 +272,18 @@
                 year--;
             }
             return { value: 0, year: 'N/A' };
+        }
+
+        // RETTELSE 2: Trafiklys-logikken bygget på dine OECD grænser
+        function getStatColor(key, val) {
+            if (val === null || val === undefined || isNaN(val)) return 'val-neutral';
+            if (key === 'GDPV_ANNPCT') return (val >= 1 && val <= 2) ? 'val-green' : 'val-red';
+            if (key === 'UNR') return (val >= 4 && val <= 8) ? 'val-green' : 'val-red';
+            if (key === 'CPI_YTYPCT' || key === 'PCORE_YTYPCT') return (val >= 1 && val <= 3) ? 'val-green' : 'val-red';
+            if (key === 'GGFLMQ') return (val <= 60) ? 'val-green' : 'val-red';
+            if (key === 'CBGDPR') return (val >= 0 && val <= 6) ? 'val-green' : 'val-red';
+            if (key === 'NLGXQ') return (val >= -3) ? 'val-green' : 'val-red';
+            return 'val-neutral';
         }
 
         // --- EVENTS ---
@@ -340,7 +358,6 @@
                     startBoard();
                     break;
                 case 'RESULT':
-                    // RETTELSE 3: Overskriv lokal bunke med Værtens master-data
                     myDeck = data.myNewDeck;
                     currentResultData = data;
                     renderResult(data);
@@ -416,6 +433,13 @@
             });
             hostPot.push(...roundCards);
 
+            // RETTELSE 4: Eliminering i multiplayer (Markér spillere ude, hvis de mangler kort)
+            players.forEach(p => {
+                if (p.active && hostMasterDecks[p.id].length === 0) {
+                    p.active = false;
+                }
+            });
+
             let nextTurn;
             let winCardsToSend = [];
 
@@ -430,17 +454,17 @@
                 while(!players[nextTurn].active) nextTurn = (nextTurn + 1) % players.length;
             }
 
-            // RETTELSE 2: Absolut synkronisering. Send individuel besked til hver spiller med deres specifikke master-deck.
             players.forEach(p => {
                 const resultMsg = {
                     type: 'RESULT',
                     winners,
                     details: roundDetails,
                     catName: meta.name,
+                    catCode: cat, // Vigtigt for at farvekoden virker i overlay
                     potSize: hostPot.length,
                     winCards: winCardsToSend,
                     nextTurn,
-                    myNewDeck: hostMasterDecks[p.id] // Her er autoriteten
+                    myNewDeck: hostMasterDecks[p.id] 
                 };
 
                 if (p.id === myId) {
@@ -480,12 +504,13 @@
                 const stat = getStat(card, key, selectedYear);
                 const li = document.createElement('li');
                 li.className = isMe ? 'stat-item' : 'stat-item disabled';
+                
+                // RETTELSE 3: Trafiklys anvendt på kortets layout
                 li.innerHTML = `<div>${indicatorMeta[key].name}${stat.year != selectedYear ? `<span class="fallback-year">(${stat.year})</span>` : ''}</div>
-                                <span class="stat-value">${stat.value.toFixed(2)}</span>`;
+                                <span class="stat-value ${getStatColor(key, stat.value)}">${stat.value.toFixed(2)}</span>`;
                 
                 if(isMe) {
                     li.onclick = () => {
-                        // RETTELSE 1: Klik-lås (Anti-spam)
                         if(isProcessing) return;
                         isProcessing = true;
                         sendToHost({type: 'PICK_CATEGORY', cat: key});
@@ -500,7 +525,8 @@
             let html = `<div style="color:var(--gold); margin-bottom:10px; font-weight:bold;">Kategori: ${data.catName}</div>`;
             Object.entries(data.details).forEach(([id, res]) => {
                 const p = players.find(x => x.id === id).name;
-                html += `<div style="margin-bottom:8px; text-align:left; border-bottom: 1px solid #444; padding-bottom:4px;">${p} (${countries[res.cardCode]}): <b>${res.value.toFixed(2)}</b></div>`;
+                // RETTELSE 3: Trafiklys anvendt i overlay
+                html += `<div style="margin-bottom:8px; text-align:left; border-bottom: 1px solid #444; padding-bottom:4px;">${p} (${countries[res.cardCode]}): <b class="${getStatColor(data.catCode, res.value)}">${res.value.toFixed(2)}</b></div>`;
             });
 
             document.getElementById('overlay-war').style.display = isWar ? 'block' : 'none';
@@ -514,16 +540,14 @@
 
         function nextRound() {
             const res = currentResultData;
-            
-            // RETTELSE 4: Fjernet lokal kort-manipulation (myDeck.shift osv.)
-            
             document.getElementById('overlay').style.display = 'none';
             turnIdx = res.nextTurn;
             document.getElementById('pot-count').innerText = res.potSize;
-            if(myDeck.length === 0) players.find(p => p.id === myId).active = false;
-            currentResultData = null;
             
-            // RETTELSE 1: Frigiv klik-lås
+            // Tjek lokal status i UI opdateringen
+            if(myDeck.length === 0) players.find(p => p.id === myId).active = false;
+            
+            currentResultData = null;
             isProcessing = false;
             
             updateUI();
