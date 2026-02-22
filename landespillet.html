@@ -172,6 +172,18 @@
             font-weight: bold;
             margin-bottom: 15px;
         }
+
+        @keyframes pulse-bg {
+            0% { background-color: rgba(78, 204, 163, 0.2); }
+            50% { background-color: rgba(78, 204, 163, 0.6); }
+            100% { background-color: rgba(78, 204, 163, 0.2); }
+        }
+
+        .stat-item.chosen-highlight {
+            animation: pulse-bg 1.5s infinite;
+            border-left: 6px solid var(--gold);
+        }
+
     </style>
 </head>
 <body>
@@ -256,7 +268,7 @@
         // --- GLOBAL STATE ---
         let peer, connections = {}; 
         let myId, hostId = null;
-        let myDeck = [], hostMasterDecks = {}, hostPot = []; 
+        let myCurrentCard = null, myDeckCount = 0, hostMasterDecks = {}, hostPot = [];
         let isHost = false, selectedYear = "2024";
         let players = []; 
         let turnIdx = 0;
@@ -303,10 +315,20 @@
         };
 
         // --- NETVÆRK ---
+        function generateShortId(length = 4) {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let result = '';
+            for (let i = 0; i < length; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
         function initHost() {
             isHost = true;
             selectedYear = document.getElementById('game-year').value;
-            peer = new Peer();
+            const shortId = generateShortId();
+            peer = new Peer(shortId);
             peer.on('open', id => {
                 myId = id;
                 document.getElementById('host-info').style.display = 'block';
@@ -370,7 +392,13 @@
                     broadcast({type: 'LOBBY', players}); renderLobby();
                 }
                 if (data.type === 'PICK_CATEGORY') {
-                    processHostRound(data.cat);
+                    const choiceMsg = { type: 'CATEGORY_CHOSEN', cat: data.cat };
+                    broadcast(choiceMsg);
+                    handleData(choiceMsg, myId); // Host processes it too
+                    
+                    setTimeout(() => {
+                        processHostRound(data.cat);
+                    }, 4000);
                 }
                 if (data.type === 'READY_NEXT') {
                     const p = players.find(x => x.id === senderId);
@@ -382,16 +410,24 @@
             switch(data.type) {
                 case 'LOBBY': players = data.players; break;
                 case 'START':
-                    // RETTELSE: Sørg for at overlayet forsvinder ved en 'soft reset'
-                    document.getElementById('overlay').style.display = 'none';
-                    myDeck = data.myDeck;
+                    myCurrentCard = data.myCard;
+                    myDeckCount = data.myDeckCount;
                     selectedYear = data.year;
                     turnIdx = data.turnIdx;
                     players = data.players;
                     startBoard();
                     break;
+                case 'CATEGORY_CHOSEN':
+                    document.querySelectorAll('.stat-item').forEach(el => {
+                        el.classList.remove('chosen-highlight');
+                        if (el.dataset.key === data.cat) {
+                            el.classList.add('chosen-highlight');
+                        }
+                    });
+                    break;
                 case 'RESULT':
-                    myDeck = data.myNewDeck;
+                    myCurrentCard = data.myNewCard;
+                    myDeckCount = data.myNewDeckCount;
                     currentResultData = data;
                     renderResult(data);
                     break;
@@ -417,16 +453,6 @@
         }
 
         // --- HOST LOGIK (OVERDOMMER) ---
-        
-        // NYT: Funktion til 'soft reset' af spillet
-        function hostRestart() {
-            readyPlayers = 0;
-            hostPot = [];
-            hostMasterDecks = {};
-            players.forEach(p => p.active = true); // Genaktiver alle spillere
-            hostBegin(); // Start kortuddeling og spil igen
-        }
-        
         async function hostBegin() {
             const codes = Object.keys(countries).sort(() => Math.random() - 0.5);
             const allData = {};
@@ -444,9 +470,16 @@
             });
 
             players.forEach(p => {
-                const msg = { type: 'START', myDeck: hostMasterDecks[p.id], year: selectedYear, players, turnIdx: 0 };
+                const msg = { 
+                    type: 'START', 
+                    myCard: hostMasterDecks[p.id][0],
+                    myDeckCount: hostMasterDecks[p.id].length,
+                    year: selectedYear, 
+                    players, 
+                    turnIdx: 0 
+                };
                 if (p.id === myId) handleData(msg, myId);
-                else if (connections[p.id]) connections[p.id].send(msg);
+                else connections[p.id].send(msg);
             });
         }
 
@@ -521,7 +554,8 @@
                     potSize: hostPot.length,
                     winCards: winCardsToSend,
                     nextTurn,
-                    myNewDeck: hostMasterDecks[p.id] 
+                    myNewCard: hostMasterDecks[p.id] && hostMasterDecks[p.id].length > 0 ? hostMasterDecks[p.id][0] : null,
+                    myNewDeckCount: hostMasterDecks[p.id] ? hostMasterDecks[p.id].length : 0
                 };
 
                 if (p.id === myId) {
@@ -540,7 +574,7 @@
         }
 
         function updateUI() {
-            if (myDeck.length === 0) {
+            if (myDeckCount === 0 || !myCurrentCard) {
                 document.getElementById('game-status').innerText = "DU ER UDE - SER MED";
                 document.getElementById('game-board').style.display = 'none';
                 return;
@@ -548,15 +582,14 @@
             
             document.getElementById('game-board').style.display = 'flex';
 
-            const activeP = players.find(p => p.active && players.indexOf(p) === turnIdx);
-            if (!activeP) return; // Sikkerhedstjek
+            const card = myCurrentCard;
+            const activeP = players[turnIdx];
             const isMe = activeP.id === myId;
             const turnName = isMe ? (isHost ? "Vært (Dig)" : activeP.name + " (Dig)") : activeP.name;
-            const card = myDeck[0];
 
             document.getElementById('country-name').innerText = countries[card.code];
             document.getElementById('country-flag').src = `https://flagcdn.com/w160/${iso3to2[card.code]}.png`;
-            document.getElementById('my-deck-count').innerText = myDeck.length;
+            document.getElementById('my-deck-count').innerText = myDeckCount;
             document.getElementById('turn-display').innerText = "Tur: " + turnName;
             document.getElementById('game-status').innerText = isMe ? "DIN TUR! Vælg et tal." : "Venter på " + activeP.name;
 
@@ -566,6 +599,7 @@
                 const stat = getStat(card, key, selectedYear);
                 const li = document.createElement('li');
                 li.className = isMe ? 'stat-item' : 'stat-item disabled';
+                li.dataset.key = key;
                 
                 li.innerHTML = `<div>${indicatorMeta[key].name}${stat.year != selectedYear ? `<span class="fallback-year">(${stat.year})</span>` : ''}</div>
                                 <span class="stat-value ${getStatColor(key, stat.value)}">${stat.value.toFixed(2)}</span>`;
@@ -585,9 +619,8 @@
             const isWar = data.winners.length > 1;
             let html = `<div style="color:var(--gold); margin-bottom:10px; font-weight:bold;">Kategori: ${data.catName}</div>`;
             Object.entries(data.details).forEach(([id, res]) => {
-                const player = players.find(x => x.id === id);
-                if (!player) return;
-                html += `<div style="margin-bottom:8px; text-align:left; border-bottom: 1px solid #444; padding-bottom:4px;">${player.name} (${countries[res.cardCode]}): <b class="${getStatColor(data.catCode, res.value)}">${res.value.toFixed(2)}</b></div>`;
+                const p = players.find(x => x.id === id).name;
+                html += `<div style="margin-bottom:8px; text-align:left; border-bottom: 1px solid #444; padding-bottom:4px;">${p} (${countries[res.cardCode]}): <b class="${getStatColor(data.catCode, res.value)}">${res.value.toFixed(2)}</b></div>`;
             });
 
             document.getElementById('overlay-war').style.display = isWar ? 'block' : 'none';
@@ -596,7 +629,7 @@
             document.getElementById('overlay-winner').innerText = isWar ? "Puljen vokser!" : "VINDER: " + players.find(p => p.id === data.winners[0]).name;
             
             const btn = document.getElementById('overlay-continue-btn');
-            if (data.myNewDeck.length > 0) {
+            if (myDeckCount > 0) {
                 btn.style.display = 'inline-block';
                 btn.innerText = "FORTSÆT";
                 btn.disabled = false;
@@ -614,18 +647,10 @@
             document.getElementById('overlay-war').style.display = 'none';
             
             const btn = document.getElementById('overlay-continue-btn');
+            btn.innerText = "SPIL IGEN";
             btn.style.display = 'inline-block';
-            
-            // RETTELSE: Soft Reset Logik
-            if (isHost) {
-                btn.innerText = "START NYT SPIL";
-                btn.disabled = false;
-                btn.onclick = hostRestart;
-            } else {
-                btn.innerText = "VENTER PÅ VÆRT...";
-                btn.disabled = true;
-                btn.onclick = null; // Fjern tidligere event listeners
-            }
+            btn.disabled = false;
+            btn.onclick = () => { window.location.reload(); };
 
             document.getElementById('overlay').style.display = 'flex';
         }
@@ -640,7 +665,7 @@
                 currentResultData = null;
             }
             
-            if(myDeck.length === 0) {
+            if(myDeckCount === 0) {
                 const me = players.find(p => p.id === myId);
                 if (me) me.active = false;
             }
