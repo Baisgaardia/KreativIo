@@ -229,6 +229,8 @@
             <ul class="stat-list" id="stat-list"></ul>
         </div>
     </div>
+    
+    <div id="eliminated-view" style="display: none;"></div>
 
     <div id="overlay">
         <div class="war-pot-ui" id="overlay-war" style="display:none">KRIGS-PULJE!</div>
@@ -269,7 +271,7 @@
         let peer, connections = {}; 
         let myId, hostId = null;
         let myCurrentCard = null, myDeckCount = 0, hostMasterDecks = {}, hostPot = [];
-        let isHost = false, selectedYear = "2024";
+        let isHost = false, selectedYear = "2024", isHostProcessing = false;
         let players = []; 
         let turnIdx = 0;
         let currentResultData = null;
@@ -341,14 +343,47 @@
                 conn.on('data', data => handleData(data, conn.peer));
                 
                 conn.on('close', () => { 
-                    const p = players.find(x => x.id === conn.peer);
-                    if(p) {
-                        p.active = false;
-                        console.log(`${p.name} disconnected.`);
+                    const disconnectedPlayer = players.find(x => x.id === conn.peer);
+                    if(disconnectedPlayer) {
+                        disconnectedPlayer.active = false;
+                        console.log(`${disconnectedPlayer.name} disconnected.`);
                     }
                     delete connections[conn.peer];
-                    broadcast({type: 'LOBBY', players}); 
-                    checkIfReadyForNextRound(); 
+
+                    const activePlayers = players.filter(p => p.active);
+                    
+                    if (activePlayers.length === 1 && players.length > 1) {
+                        const winner = activePlayers[0];
+                        const gameOverMsg = { type: 'GAME_OVER', winnerName: winner.name };
+                        broadcast(gameOverMsg);
+                        handleData(gameOverMsg, myId);
+                        return;
+                    }
+
+                    if (players[turnIdx] && players[turnIdx].id === conn.peer && !isHostProcessing) {
+                        do {
+                            turnIdx = (turnIdx + 1) % players.length;
+                        } while (!players[turnIdx].active);
+
+                        activePlayers.forEach(p => {
+                            const msg = { 
+                                type: 'START',
+                                myCard: hostMasterDecks[p.id] ? hostMasterDecks[p.id][0] : null,
+                                myDeckCount: hostMasterDecks[p.id] ? hostMasterDecks[p.id].length : 0,
+                                year: selectedYear, 
+                                players,
+                                turnIdx
+                            };
+                            if (p.id === myId) {
+                                handleData(msg, myId);
+                            } else if (connections[p.id]) {
+                                connections[p.id].send(msg);
+                            }
+                        });
+                    } else {
+                         broadcast({type: 'LOBBY', players}); 
+                         checkIfReadyForNextRound(); 
+                    }
                 });
             });
         }
@@ -392,12 +427,15 @@
                     broadcast({type: 'LOBBY', players}); renderLobby();
                 }
                 if (data.type === 'PICK_CATEGORY') {
+                    if (isHostProcessing) return;
+                    isHostProcessing = true;
                     const choiceMsg = { type: 'CATEGORY_CHOSEN', cat: data.cat };
                     broadcast(choiceMsg);
-                    handleData(choiceMsg, myId); // Host processes it too
+                    handleData(choiceMsg, myId);
                     
                     setTimeout(() => {
                         processHostRound(data.cat);
+                        isHostProcessing = false;
                     }, 9000);
                 }
                 if (data.type === 'READY_NEXT') {
@@ -515,24 +553,10 @@
             });
             hostPot.push(...roundCards);
 
-            players.forEach(p => {
-                if (p.active && hostMasterDecks[p.id].length === 0) {
-                    p.active = false;
-                }
-            });
-            
-            const activePlayers = players.filter(p => p.active);
-            if (activePlayers.length <= 1) {
-                const winner = activePlayers.length === 1 ? activePlayers[0] : players.find(p => p.id === winners[0]);
-                const gameOverMsg = { type: 'GAME_OVER', winnerName: winner.name };
-                broadcast(gameOverMsg);
-                handleData(gameOverMsg, myId);
-                return;
-            }
-
             let nextTurn;
             let winCardsToSend = [];
 
+            // 1. UDDEL PULJEN FØRST (Så vinderen overlever, hvis det var deres sidste kort)
             if (winners.length === 1) {
                 const winnerId = winners[0];
                 winCardsToSend = [...hostPot];
@@ -541,7 +565,29 @@
                 nextTurn = players.findIndex(p => p.id === winnerId);
             } else {
                 nextTurn = (turnIdx + 1) % players.length;
-                while(!players[nextTurn].active) nextTurn = (nextTurn + 1) % players.length;
+            }
+
+            // 2. TJEK NU HVEM DER ER LØBET TØR FOR KORT
+            players.forEach(p => {
+                if (p.active && hostMasterDecks[p.id].length === 0) {
+                    p.active = false;
+                }
+            });
+            
+            const activePlayers = players.filter(p => p.active);
+            
+            // 3. TJEK OM SPILLET ER SLUT
+            if (activePlayers.length <= 1) {
+                const winner = activePlayers.length === 1 ? activePlayers[0] : players.find(p => p.id === winners[0]);
+                const gameOverMsg = { type: 'GAME_OVER', winnerName: winner ? winner.name : "Uafgjort" };
+                broadcast(gameOverMsg);
+                handleData(gameOverMsg, myId);
+                return;
+            }
+
+            // 4. FIND NÆSTE TUR BLANDT AKTIVE SPILLERE
+            while(!players[nextTurn].active) {
+                nextTurn = (nextTurn + 1) % players.length;
             }
 
             players.forEach(p => {
@@ -575,8 +621,17 @@
 
         function updateUI() {
             if (myDeckCount === 0 || !myCurrentCard) {
-                document.getElementById('game-status').innerText = "DU ER UDE - SER MED";
+                document.getElementById('game-status').innerText = "DU HAR IKKE FLERE KORT";
                 document.getElementById('game-board').style.display = 'none';
+                
+                const eliminatedView = document.getElementById('eliminated-view');
+                eliminatedView.innerHTML = `
+                    <div style="max-width: 450px; margin: auto; padding: 20px; text-align: center; margin-top: 50px;">
+                        <p>Du er ude af spillet. Du kan lade fanen stå åben for at se resultaterne, eller lukke spillet ned.</p>
+                        <button class="btn btn-accent" style="width: 200px;" onclick="window.location.reload()">Forlad Spillet</button>
+                    </div>
+                `;
+                eliminatedView.style.display = 'block';
                 return;
             }
             
@@ -681,4 +736,3 @@
     </script>
 </body>
 </html>
-
