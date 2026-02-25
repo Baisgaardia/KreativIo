@@ -330,14 +330,29 @@
             isHost = true;
             selectedYear = document.getElementById('game-year').value;
             const shortId = generateShortId();
-            peer = new Peer(shortId);
+            
+            // Konfiguration med Googles gratis STUN-servere (hjælper mod Firewalls)
+            const peerConfig = {
+                config: {
+                    'iceServers': [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                }
+            };
+
+            // Vi tilføjer "makro-" usynligt, så vi ikke kolliderer med andre i verden
+            peer = new Peer("makro-" + shortId, peerConfig);
+            
             peer.on('open', id => {
                 myId = id;
                 document.getElementById('host-info').style.display = 'block';
-                document.getElementById('peer-id-display').innerText = id;
+                // Vis kun de 4 tegn til spillerne
+                document.getElementById('peer-id-display').innerText = shortId;
                 players.push({id: id, name: "Vært", active: true});
                 renderLobby();
             });
+            
             peer.on('connection', conn => {
                 connections[conn.peer] = conn;
                 conn.on('data', data => handleData(data, conn.peer));
@@ -389,12 +404,25 @@
         }
 
         function initJoin() {
-            const hId = document.getElementById('join-id').value.trim();
+            const hId = document.getElementById('join-id').value.trim().toUpperCase();
             const uName = document.getElementById('join-name').value || "Spiller";
             if(!hId) return alert("Indtast Værtens ID");
             
-            hostId = hId; 
-            peer = new Peer();
+            // Vi leder efter værtens usynlige "makro-" ID
+            hostId = "makro-" + hId; 
+            
+            // Samme STUN-konfiguration for klienten
+            const peerConfig = {
+                config: {
+                    'iceServers': [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                }
+            };
+
+            peer = new Peer(peerConfig);
+            
             peer.on('open', id => {
                 myId = id;
                 const conn = peer.connect(hostId);
@@ -404,7 +432,7 @@
                     document.getElementById('lobby-view').innerHTML = "<h3>Forbundet! Venter på start...</h3>";
                 });
                 conn.on('data', data => handleData(data, hostId));
-                conn.on('error', () => alert("Kunne ikke oprette forbindelse."));
+                conn.on('error', () => alert("Kunne ikke oprette forbindelse. Prøv igen."));
             });
         }
         
@@ -736,3 +764,4 @@
     </script>
 </body>
 </html>
+
