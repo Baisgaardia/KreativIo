@@ -332,11 +332,22 @@
             const shortId = generateShortId();
             
             // Konfiguration med Googles gratis STUN-servere (hjælper mod Firewalls)
+            // Konfiguration med STUN (vejviser) og TURN (postmand til svære netværk)
             const peerConfig = {
                 config: {
                     'iceServers': [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' }
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { 
+                            urls: 'turn:openrelay.metered.ca:80',
+                            username: 'openrelayproject',
+                            credential: 'openrelayproject'
+                        },
+                        { 
+                            urls: 'turn:openrelay.metered.ca:443',
+                            username: 'openrelayproject',
+                            credential: 'openrelayproject'
+                        }
                     ]
                 }
             };
@@ -412,11 +423,22 @@
             hostId = "makro-" + hId; 
             
             // Samme STUN-konfiguration for klienten
+            // Konfiguration med STUN (vejviser) og TURN (postmand til svære netværk)
             const peerConfig = {
                 config: {
                     'iceServers': [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' }
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { 
+                            urls: 'turn:openrelay.metered.ca:80',
+                            username: 'openrelayproject',
+                            credential: 'openrelayproject'
+                        },
+                        { 
+                            urls: 'turn:openrelay.metered.ca:443',
+                            username: 'openrelayproject',
+                            credential: 'openrelayproject'
+                        }
                     ]
                 }
             };
@@ -764,4 +786,5 @@
     </script>
 </body>
 </html>
+
 
