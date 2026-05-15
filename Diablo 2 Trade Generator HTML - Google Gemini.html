@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D2JSP Trade Generator - RotW Edition</title>
+    <style>
+        :root {
+            --d2-gold: #cc9933;
+            --d2-blue: #4850b8;
+            --d2-green: #18ad18;
+            --d2-orange: #d8812c;
+            --d2-bg: #0a0a0a;
+            --d2-panel: #1a1a1a;
+            --d2-text: #e0e0e0;
+        }
+
+        body {
+            background-color: var(--d2-bg);
+            color: var(--d2-text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .wrapper { max-width: 1000px; margin: 0 auto; }
+        header { text-align: center; border-bottom: 2px solid var(--d2-gold); margin-bottom: 30px; padding-bottom: 10px; }
+        h1 { color: var(--d2-gold); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: var(--d2-panel); border: 1px solid #333; padding: 20px; border-radius: 4px; }
+        h2 { color: var(--d2-gold); font-size: 1.2rem; border-bottom: 1px solid #333; padding-bottom: 10px; margin-top: 0; }
+        
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #aaa; font-size: 0.9rem; }
+        select, input {
+            width: 100%; padding: 10px; background: #000; border: 1px solid #444; 
+            color: var(--d2-gold); margin-bottom: 15px; box-sizing: border-box; font-weight: bold;
+        }
+        select:focus, input:focus { outline: none; border-color: var(--d2-gold); }
+
+        .variable-fields { margin-top: 15px; padding: 15px; border-left: 3px solid var(--d2-blue); background: #111; }
+        .runeword-fields { border-left-color: var(--d2-orange); }
+
+        .output-container { grid-column: span 2; }
+        .jsp-box {
+            background: #000; border: 1px dashed var(--d2-gold); padding: 20px; 
+            color: var(--d2-green); font-family: 'Courier New', Courier, monospace; 
+            font-size: 1.2rem; min-height: 50px; white-space: pre-wrap; cursor: pointer; transition: background 0.3s;
+        }
+        .jsp-box:hover { background: #050505; }
+        
+        .image-preview {
+            width: 100%; height: 180px; border: 2px dashed #444; display: flex; 
+            align-items: center; justify-content: center; color: #888; cursor: pointer;
+            background-size: contain; background-repeat: no-repeat; background-position: center;
+            transition: all 0.2s ease-in-out; text-align: center; padding: 10px; box-sizing: border-box;
+        }
+        .image-preview.dragover {
+            border-color: var(--d2-green);
+            background-color: #112211;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <header>
+        <h1>D2JSP Pro Trader</h1>
+        <p style="color: #888; font-style: italic;">Auto-formatering af variable stats til d2jsp (RotW / D2R)</p>
+    </header>
+
+    <div class="grid">
+        <!-- Input Sektion -->
+        <div class="card">
+            <h2>1. Vælg Item</h2>
+            <select id="itemSelect" onchange="updateFields()">
+                <option value="">-- Vælg Item --</option>
+                
+                <optgroup label="🔥 Runewords">
+                    <option value="enigma">Enigma</option>
+                    <option value="infinity">Infinity</option>
+                    <option value="grief">Grief</option>
+                    <option value="cta">Call to Arms (CTA)</option>
+                    <option value="spirit_shield">Spirit (Shield)</option>
+                    <option value="hoto">Heart of the Oak (HOTO)</option>
+                    <option value="fortitude">Fortitude</option>
+                </optgroup>
+
+                <optgroup label="👑 Uniques - Armor/Helms">
+                    <option value="shako">Harlequin Crest (Shako)</option>
+                    <option value="griffon">Griffon's Eye</option>
+                    <option value="coa">Crown of Ages (CoA)</option>
+                    <option value="arach">Arachnid Mesh</option>
+                    <option value="wt">War Traveler</option>
+                    <option value="trek">Sandstorm Trek (Eth/Non-eth)</option>
+                </optgroup>
+
+                <optgroup label="⚔️ Uniques - Weapons/Jewelry">
+                    <option value="dfathom">Death's Fathom</option>
+                    <option value="eschuta">Eschuta's Temper</option>
+                    <option value="mara">Mara's Kaleidoscope</option>
+                    <option value="raven">Raven Frost</option>
+                </optgroup>
+
+                <optgroup label="🎒 Charms & Jewels">
+                    <option value="torch">Hellfire Torch</option>
+                    <option value="anni">Annihilus (Anni)</option>
+                    <option value="skiller">Skill Grand Charm</option>
+                    <option value="sc">Small Charm (SC)</option>
+                    <option value="facet">Rainbow Facet</option>
+                </optgroup>
+            </select>
+
+            <div id="dynamicFields" class="variable-fields">
+                <p style="color:#666">Vælg et item for at se dets variable stats...</p>
+            </div>
+        </div>
+
+        <!-- Billede og Ekstra info -->
+        <div class="card">
+            <h2>2. Visuel Reference</h2>
+            <input type="file" id="fileInput" accept="image/*" style="display:none">
+            <div class="image-preview" id="imageDrop">
+                Klik her, træk et billede ind,<br>eller tryk Ctrl+V for at indsætte screenshot
+            </div>
+            
+            <h3 style="margin-top: 20px; border-bottom: 1px solid #333; padding-bottom: 5px;">Noter til jsp:</h3>
+            <p style="font-size: 0.85rem; color: #aaa;">
+                Programmet ved automatisk hvordan d2jsp-tradere formaterer ting. <br>
+                F.eks. formateres <strong>CTA</strong> automatisk som <code>CTA [BO]/[BC]/[Cry]</code>, og <strong>Grief</strong> som <code>Grief [IAS]/[DMG]</code>. Udfyld blot tallene i felterne.
+            </p>
+        </div>
+
+        <!-- Output Sektion -->
+        <div class="output-container card">
+            <h2>3. Færdig d2jsp Tekst (Klik for at kopiere)</h2>
+            <div id="outputBox" class="jsp-box" onclick="copyToClipboard()">Venter på input...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const dropZone = document.getElementById('imageDrop');
+    const fileInput = document.getElementById('fileInput');
+
+    // Fælles funktion til at håndtere og vise billedet lokalt
+    function handleImageFile(file) {
+        if (file && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                dropZone.style.backgroundImage = `url(${event.target.result})`;
+                dropZone.innerText = "";
+            }
+            reader.readAsDataURL(file);
+        }
+    }
+
+    // 1. Traditionel klik-upload
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => handleImageFile(e.target.files[0]));
+
+    // 2. Drag and Drop funktionalitet
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            handleImageFile(e.dataTransfer.files[0]);
+        }
+    });
+
+    // 3. Clipboard / Copy-Paste (Ctrl+V) hvor som helst på siden
+    window.addEventListener('paste', (e) => {
+        const items = e.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const file = items[i].getAsFile();
+                handleImageFile(file);
+                break;
+            }
+        }
+    });
+
+    // ----------------------------------------------------------------------
+    // ITEM DATABASE
+    // ----------------------------------------------------------------------
+    const itemDb = {
+        // --- RUNEWORDS ---
+        enigma: {
+            name: "Enigma", type: "runeword", needsBase: true,
+            vars: [
+                { label: "Total Defense", key: "def", jsp: "def" },
+            ],
+            format: (name, base, vals) => `${name} ${base} ${vals.def}def`
+        },
+        infinity: {
+            name: "Infinity", type: "runeword", needsBase: true,
+            vars: [
+                { label: "Enhanced Damage (%)", key: "ed", jsp: "ed" },
+                { label: "-% Enemy Light Res", key: "light", jsp: "-light" }
+            ],
+            format: (name, base, vals) => `${name} ${base} ${vals.ed}ed / ${vals.light} light`
+        },
+        grief: {
+            name: "Grief", type: "runeword", needsBase: true,
+            vars: [
+                { label: "IAS (%)", key: "ias" },
+                { label: "Damage", key: "dmg" },
+                { label: "-% Enemy Poison Res", key: "psn", jsp: "-psn", optional: true }
+            ],
+            format: (name, base, vals) => `${name} ${base} ${vals.ias}/${vals.dmg}${vals.psn ? ` (${vals.psn} psn)` : ''}`
+        },
+        cta: {
+            name: "CTA", type: "runeword", needsBase: true,
+            vars: [
+                { label: "Battle Command", key: "bc" },
+                { label: "Battle Orders", key: "bo" },
+                { label: "Battle Cry", key: "cry" }
+            ],
+            format: (name, base, vals) => `${name} ${base} ${vals.bc}/${vals.bo}/${vals.cry}`
+        },
+        spirit_shield: {
+            name: "Spirit", type: "runeword", needsBase: true,
+            vars: [
+                { label: "FCR (%)", key: "fcr", jsp: "fcr" },
+                { label: "Mana", key: "mana", jsp: "mana" },
+                { label: "Magic Absorb", key: "mabs", jsp: "mabs" }
+            ],
+            format: (name, base, vals) => `${name} ${base} ${vals.fcr}fcr / ${vals.mana}mana / ${vals.mabs}mabs`
+        },
+        hoto: {
+            name: "HOTO", type: "runeword", needsBase: false,
+            vars: [ { label: "All Resistances", key: "res", jsp: "@res" } ],
+            format: (name, base, vals) => `${name} ${vals.res}@res`
+        },
+        fortitude: {
+            name: "Fortitude", type: "runeword", needsBase: true,
+            vars: [
+                { label: "All Resistances", key: "res", jsp: "@res" },
+                { label: "+Life (per level - f.eks. 1.25)", key: "life", jsp: "lpl" }
+            ],
+            format: (name, base, vals) => `${name} ${base} ${vals.life} lpl / ${vals.res}@res`
+        },
+
+        // --- UNIQUES ---
+        shako: { name: "Shako", vars: [{ label: "Defense", key: "def", jsp: "def" }] },
+        arach: { name: "Arach", vars: [{ label: "Enhanced Defense (%)", key: "ed", jsp: "ed" }] },
+        mara: { name: "Mara's", vars: [{ label: "All Resistances", key: "res", jsp: "@res" }] },
+        griffon: {
+            name: "Griffon's Eye",
+            vars: [
+                { label: "-% Enemy Light Res", key: "minus_light" },
+                { label: "+% Light Skill Dmg", key: "plus_light" },
+                { label: "Defense", key: "def", jsp: "def" }
+            ],
+            format: (name, base, vals) => `${name} -${vals.minus_light}/${vals.plus_light} (${vals.def}def)`
+        },
+        coa: {
+            name: "CoA",
+            vars: [
+                { label: "Sockets (1-2)", key: "os", jsp: "os" },
+                { label: "Damage Reduced (%)", key: "dr", jsp: "dr" },
+                { label: "All Resistances", key: "res", jsp: "@res" }
+            ],
+            format: (name, base, vals) => `${name} ${vals.os}os / ${vals.dr}dr / ${vals.res}@res`
+        },
+        wt: {
+            name: "War Traveler (WT)",
+            vars: [ { label: "Magic Find (%)", key: "mf", jsp: "mf" }, { label: "Enhanced Defense (%)", key: "ed", jsp: "ed", optional: true } ],
+            format: (name, base, vals) => `WT ${vals.mf}mf ${vals.ed ? `(${vals.ed}ed)` : ''}`
+        },
+        trek: {
+            name: "Treks",
+            vars: [
+                { label: "Ethereal? (Skriv 'Eth' eller lad stå tom)", key: "eth", jsp: "" },
+                { label: "Strength", key: "str", jsp: "str" },
+                { label: "Vitality", key: "vit", jsp: "vita" },
+                { label: "Poison Res", key: "psn", jsp: "pr", optional: true }
+            ],
+            format: (name, base, vals) => `${vals.eth ? 'Eth ' : ''}Treks ${vals.str}str / ${vals.vit}vita ${vals.psn ? `/ ${vals.psn}pr` : ''}`
+        },
+        dfathom: {
+            name: "Death's Fathom",
+            vars: [
+                { label: "+% Cold Skill Dmg", key: "cold", jsp: "% cold" },
+                { label: "Light Res", key: "lr", jsp: "lr", optional: true },
+                { label: "Fire Res", key: "fr", jsp: "fr", optional: true }
+            ],
+            format: (name, base, vals) => `${name} ${vals.cold}% cold` + (vals.lr ? ` / ${vals.lr}lr` : '') + (vals.fr ? ` / ${vals.fr}fr` : '')
+        },
+        raven: {
+            name: "Raven Frost",
+            vars: [ { label: "Dexterity", key: "dex", jsp: "dex" }, { label: "Attack Rating", key: "ar", jsp: "ar" } ],
+            format: (name, base, vals) => `${name} ${vals.dex}dex / ${vals.ar}ar`
+        },
+        eschuta: {
+            name: "Eschuta's",
+            vars: [
+                { label: "+Skills (1-3)", key: "skills" },
+                { label: "+% Light Dmg", key: "light" },
+                { label: "+% Fire Dmg", key: "fire" },
+                { label: "Energy", key: "nrg", jsp: "nrg", optional: true }
+            ],
+            format: (name, base, vals) => `${name} +${vals.skills} / +${vals.light}L / +${vals.fire}F` + (vals.nrg ? ` (${vals.nrg} nrg)` : '')
+        },
+
+        // --- CHARMS & JEWELS ---
+        torch: {
+            name: "Torch",
+            vars: [
+                { label: "Class (Sorc, Pala, etc)", key: "class", jsp: "" },
+                { label: "Attributes", key: "attr", jsp: "" },
+                { label: "All Res", key: "res", jsp: "" }
+            ],
+            format: (name, base, vals) => `${vals.class} ${name} ${vals.attr}/${vals.res}`
+        },
+        anni: {
+            name: "Anni",
+            vars: [
+                { label: "Attributes", key: "attr" },
+                { label: "All Res", key: "res" },
+                { label: "Exp %", key: "exp" }
+            ],
+            format: (name, base, vals) => `${name} ${vals.attr}/${vals.res}/${vals.exp}`
+        },
+        skiller: {
+            name: "Skiller",
+            vars: [
+                { label: "Skill Tree (f.eks. Pcomb, Light, Cold)", key: "tree" },
+                { label: "Secondary Mod (f.eks. 40 life, 12 fhr)", key: "mod", jsp: "" }
+            ],
+            format: (name, base, vals) => `${vals.tree} Skiller ${vals.mod ? `+ ${vals.mod}` : ''}`
+        },
+        sc: {
+            name: "SC",
+            vars: [
+                { label: "Mod 1 (f.eks. 20 life, 7 mf)", key: "mod1" },
+                { label: "Mod 2 (f.eks. 11 lr, 5@res)", key: "mod2", optional: true }
+            ],
+            format: (name, base, vals) => `SC ${vals.mod1} ${vals.mod2 ? `/ ${vals.mod2}` : ''}`
+        },
+        facet: {
+            name: "Facet",
+            vars: [
+                { label: "Element (Light, Fire, Cold, Psn)", key: "elem" },
+                { label: "Level up / Die? (Lvl / Die)", key: "type" },
+                { label: "-% Enemy Res", key: "minus" },
+                { label: "+% Skill Dmg", key: "plus" }
+            ],
+            format: (name, base, vals) => `${vals.elem} ${name} -${vals.minus}/${vals.plus} ${vals.type}`
+        }
+    };
+
+    function updateFields() {
+        const selected = document.getElementById('itemSelect').value;
+        const container = document.getElementById('dynamicFields');
+        container.innerHTML = "";
+
+        if (!selected || !itemDb[selected]) {
+            container.innerHTML = '<p style="color:#666">Vælg et item for at se variabler...</p>';
+            container.className = "variable-fields";
+            generateOutput();
+            return;
+        }
+
+        const item = itemDb[selected];
+        container.className = item.type === "runeword" ? "variable-fields runeword-fields" : "variable-fields";
+
+        if (item.needsBase) {
+            const baseLabel = document.createElement('label');
+            baseLabel.innerText = "Base Item (f.eks. AP, MP, PB, Monarch)";
+            const baseInput = document.createElement('input');
+            baseInput.id = "base_item";
+            baseInput.placeholder = "Indtast base";
+            baseInput.oninput = generateOutput;
+            container.appendChild(baseLabel);
+            container.appendChild(baseInput);
+        }
+
+        item.vars.forEach(v => {
+            const label = document.createElement('label');
+            label.innerText = v.label + (v.optional ? " (Valgfri)" : "");
+            
+            const input = document.createElement('input');
+            input.type = "text";
+            input.id = `field_${v.key}`;
+            input.oninput = generateOutput;
+            
+            container.appendChild(label);
+            container.appendChild(input);
+        });
+        
+        generateOutput();
+    }
+
+    function generateOutput() {
+        const selected = document.getElementById('itemSelect').value;
+        const output = document.getElementById('outputBox');
+        
+        if (!selected) {
+            output.innerText = "Venter på input...";
+            return;
+        }
+
+        const item = itemDb[selected];
+        let vals = {};
+        let missingRequired = false;
+
+        let baseItem = "";
+        if (item.needsBase) {
+            baseItem = document.getElementById("base_item").value.trim();
+        }
+
+        item.vars.forEach(v => {
+            const val = document.getElementById(`field_${v.key}`).value.trim();
+            if (val) {
+                vals[v.key] = val;
+            } else if (!v.optional) {
+                missingRequired = true;
+            }
+        });
+
+        if (missingRequired) {
+            output.innerText = "Udfyld venligst de påkrævede felter for at generere text...";
+            output.style.color = "#888";
+            return;
+        }
+
+        output.style.color = "var(--d2-green)";
+        let resultText = "";
+
+        if (item.format) {
+            resultText = item.format(item.name, baseItem, vals);
+        } else {
+            let parts = [item.name];
+            if (baseItem) parts.push(baseItem);
+            
+            item.vars.forEach(v => {
+                if (vals[v.key]) {
+                    parts.push(`${vals[v.key]}${v.jsp || ''}`);
+                }
+            });
+            resultText = parts.join(" ");
+        }
+
+        resultText = resultText.replace(/\s+/g, ' ').trim();
+        output.innerText = `FT: ${resultText} / BIN: Offer`;
+    }
+
+    function copyToClipboard() {
+        const text = document.getElementById('outputBox').innerText;
+        if (text.includes("Venter på input") || text.includes("Udfyld venligst")) return;
+        
+        navigator.clipboard.writeText(text).then(() => {
+            alert("Kopieret til udklipsholder: \n" + text);
+        });
+    }
+</script>
+
+</body>
+</html>
