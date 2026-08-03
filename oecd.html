@@ -210,7 +210,7 @@
   // VIGTIGT: Data hentes nu fra lokale JSON-filer i 'data/' mappen
   const DATA_DIR = './data/'; // Sti til mappen med JSON-filer
 
-  const endYear = 2024; // Vi antager endYear er 2024, da det er hvad der blev brugt i din CSV-download
+  const endYear = 2025; // Vi antager endYear er 2025, da det er hvad der blev brugt i din CSV-download
 
  const countries = [
     {code:'AUS', name:'Australien'},{code:'AUT', name:'Østrig'},{code:'BEL', name:'Belgien'},
@@ -356,7 +356,7 @@
   function problems(dataMap) {
     const p = [];
     // Juster endYear til at bruge det seneste år fundet i dataMap.years
-    const currentEndYear = years.includes(2024) ? 2024 : years[years.length - 1]; // Brug 2024 hvis tilgængeligt, ellers seneste år
+    const currentEndYear = years.includes(2025) ? 2025 : years[years.length - 1]; // Brug 2024 hvis tilgængeligt, ellers seneste år
 
     const debt = dataMap['GGFLMQ'] ? dataMap['GGFLMQ'][currentEndYear] : null;
     if (debt != null) {
@@ -391,7 +391,7 @@
   // --- NY FUNKTION TIL DYNAMISKE FOKUSOMRÅDER ---
   function considerations(dataMap, code) {
     const lines = new Set();
-    const currentEndYear = years.includes(2024) ? 2024 : years[years.length - 1]; // Brug 2024 hvis tilgængeligt, ellers seneste år
+    const currentEndYear = years.includes(2025) ? 2025 : years[years.length - 1]; // Brug 2024 hvis tilgængeligt, ellers seneste år
 
     const u  = dataMap['UNR'] ? dataMap['UNR'][currentEndYear] : null;
     const d  = dataMap['GGFLMQ'] ? dataMap['GGFLMQ'][currentEndYear] : null;
@@ -436,7 +436,7 @@
 
   function describeProblem(p0, dataMap, code) {
     const landName = countries.find(c => c.code === code).name;
-    const currentEndYear = years.includes(2024) ? 2024 : years[years.length - 1]; // Brug 2024 hvis tilgængeligt, ellers seneste år
+    const currentEndYear = years.includes(2025) ? 2025 : years[years.length - 1]; // Brug 2024 hvis tilgængeligt, ellers seneste år
 
     const d = dataMap['GGFLMQ'] ? dataMap['GGFLMQ'][currentEndYear] : null;
     const ci = dataMap['CPI_YTYPCT'] ? dataMap['CPI_YTYPCT'][currentEndYear] : null;
@@ -540,7 +540,7 @@
 
     function replaceTokens(text, countryName, dataMap) {
         // Bruges til at sikre, at vi kun bruger data fra 2024 eller det seneste tilgængelige år.
-        const targetYear = years.includes(2024) ? 2024 : years[years.length - 1]; 
+        const targetYear = years.includes(2025) ? 2025 : years[years.length - 1]; 
         const getValue = (indicatorCode) => {
             const val = dataMap[indicatorCode] ? dataMap[indicatorCode][targetYear] : null;
             return val != null ? val.toFixed(2).replace('.', ',') : 'data ikke tilgængelig';
@@ -573,7 +573,7 @@
     function generateThemeAssignment(theme, countryName, dataMap) {
         let assignmentTemplate = '';
         // Bruges til at sikre, at vi kun bruger data fra 2024 eller det seneste tilgængelige år.
-        const targetYear = years.includes(2024) ? 2024 : years[years.length - 1]; 
+        const targetYear = years.includes(2025) ? 2025 : years[years.length - 1]; 
 
         switch (theme) {
             case 'arbejdsmarked_mismatch':
@@ -759,7 +759,7 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
     function updateThemeOptions(dataMap) {
         const themeSelect = $('themeSelect');
         // Find 2024 i years-array'et. Hvis det ikke findes, brug det seneste år.
-        const currentEndYear = years.includes(2024) ? 2024 : years[years.length - 1]; 
+        const currentEndYear = years.includes(2025) ? 2025 : years[years.length - 1]; 
 
         // Hent data for det valgte år for alle nødvendige indikatorer.
         const unemployment = dataMap['UNR'] ? dataMap['UNR'][currentEndYear] : null;
@@ -890,7 +890,7 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
         
         // --- START OF MODIFIED SECTION ---
         // Default selection: 2015-2024 for main table display
-        selectedDisplayYears = data1.years.filter(year => year >= 2015 && year <= 2024);
+        selectedDisplayYears = data1.years.filter(year => year >= 2015 && year <= 2025);
         selectedDisplayYears.sort((a, b) => a - b); // Ensure years are sorted
         // --- END OF MODIFIED SECTION ---
 
@@ -968,7 +968,7 @@ Analyser med udgangspunkt i relevante nøgletal mulige årsagsforklaringer på d
 
             // Default selection in modal always from 2014-2024 as previously requested
             // This is separate from the *initial display* after fetch
-            if (year >= 2014 && year <= 2024) {
+            if (year >= 2014 && year <= 2025) {
                 checkbox.checked = true;
             }
             // If selectedDisplayYears is already populated by a previous user choice, it overrides the default
