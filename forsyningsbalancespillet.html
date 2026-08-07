@@ -882,18 +882,24 @@ const userChoice = userAnalysis[comp];
 if(!userChoice) { errors.push(`Mangler vurdering for ${comp}.`); return; }
 const growth = currentData[comp][2025];
 let correctType = "";
-if (growth < 0) {
+
+// Løser decimalfejlen ved at gange med 10 og runde af
+const growthInt = Math.round(growth * 10);
+const bnpGrowthInt = Math.round(bnpGrowth * 10);
+
+if (growthInt < 0) {
 correctType = "Negativt";
 }
-else if (Math.abs(growth - bnpGrowth) <= 0.1) {
+else if (growthInt === bnpGrowthInt) {
 correctType = "Neutralt";
 }
-else if (growth > bnpGrowth + 0.1) {
+else if (growthInt > bnpGrowthInt) {
 correctType = "Positivt";
 }
 else {
 correctType = "Mindre bidrag";
 }
+
 if (userChoice !== correctType) {
 let reason = "";
 if (correctType === "Positivt") reason = "stiger mere end BNP og trækker gennemsnittet op";
@@ -914,7 +920,6 @@ fb.className = "feedback error";
 fb.innerHTML = "<strong>Fejl i analysen:</strong><br><ul style='text-align:left;'>" + errors.map(e => `<li>${e}</li>`).join("") + "</ul>";
 }
 }
-
 function startStep5() {
 showStep(5);
 setupStep5();
