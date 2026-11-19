@@ -1,0 +1,6 @@
+{
+  "name": "Collate — Document Similarity & Plagiarism Workbench",
+  "description": "Scan documents against reference texts or compare two submissions against a right answer to isolate and highlight all unique similarities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
