@@ -1,0 +1,6 @@
+{
+  "name": "OECD GeoGuessr – Priskonkurrenceevne",
+  "description": "Interaktivt undervisningsspil til International Økonomi (2.g, A-niveau), der kombinerer visuel lokationsgætning med analyse af OECD-data for produktivitet, lønomkostninger og priskonkurrenceevne.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
